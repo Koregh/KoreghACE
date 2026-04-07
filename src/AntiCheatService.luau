@@ -1,18 +1,7 @@
 --!strict
 --!optimize 2
 
--- ============================================================
---  AntiCheatService.luau  v3.0  — Orchestrator / Entry Point
---
---  v3 changes:
---    • AC_Handshake RemoteFunction: sends session key to client,
---      receives initial client FPS
---    • AC_FPS RemoteEvent: client pushes fps updates each minute
---    • All game RemoteEvents now validated via CryptoLib.decode
---    • weaponName forwarded to AnomalyDetector.analyse for recoil
---    • AntiCheatService.registerPhysicsEvent exposed to game code
---    • AnomalyDetector.latestAnomaly replaces direct index access
--- ============================================================
+
 
 local RunService        = game:GetService("RunService")
 local Players           = game:GetService("Players")
@@ -27,7 +16,6 @@ local CryptoLib       = require(script.Shared.CryptoLib)
 local Types           = require(script.Shared.Types)
 local MathLib         = require(script.Shared.MathLib)
 
--- ── Remote factories ─────────────────────────────────────────
 local function makeEvent(name: string): RemoteEvent
 	local r = Instance.new("RemoteEvent"); r.Name = name; r.Parent = ReplicatedStorage; return r
 end
@@ -35,7 +23,6 @@ local function makeFunction(name: string): RemoteFunction
 	local r = Instance.new("RemoteFunction"); r.Name = name; r.Parent = ReplicatedStorage; return r
 end
 
--- ── Remotes ──────────────────────────────────────────────────
 -- AC_Handshake: client calls this once on join.
 --   Server → Client: session key (16 bytes)
 --   Client → Server: initial FPS (number)
@@ -50,7 +37,6 @@ local ActionEvent   : RemoteEvent    = makeEvent("AC_Action")
 local StimulusEvent : RemoteEvent    = makeEvent("AC_Stimulus")
 local HitEvent      : RemoteEvent    = makeEvent("AC_Hit")
 
--- ── Handshake ────────────────────────────────────────────────
 -- Client calls AC_Handshake() → receives the key as a byte array.
 -- The client caches it; no further key exchange needed this session.
 HandshakeFunc.OnServerInvoke = function(player: Player, clientFps: unknown): { number }
@@ -71,13 +57,11 @@ HandshakeFunc.OnServerInvoke = function(player: Player, clientFps: unknown): { n
 	return profile.sessionKey.key
 end
 
--- ── FPS updates ──────────────────────────────────────────────
 FpsEvent.OnServerEvent:Connect(function(player: Player, fps: unknown)
 	if type(fps) ~= "number" then return end
 	DataCollector.updateFps(player.UserId, fps :: number)
 end)
 
--- ── Crypto decode helper ──────────────────────────────────────
 -- Returns decoded byte array or nil on failure (tamper / replay).
 local function decodePayload(
 	player  : Player,
@@ -115,7 +99,6 @@ local function decodePayload(
 	return decoded
 end
 
--- ── Rate limiter (RemoteEvent flood guard) ───────────────────
 local _actionCount  : { [Types.PlayerId]: number } = {}
 local _actionWindow : { [Types.PlayerId]: number } = {}
 local MAX_ACTIONS   : number = 30
@@ -131,7 +114,6 @@ local function rateLimited(pid: Types.PlayerId): boolean
 	return cnt > MAX_ACTIONS
 end
 
--- ── Action event ─────────────────────────────────────────────
 -- Wire format (plaintext after decode): { actionId: u8 }
 -- Encoded as: [ actionId ]  (1 byte)
 ActionEvent.OnServerEvent:Connect(function(player: Player, packet: unknown)
@@ -145,7 +127,6 @@ ActionEvent.OnServerEvent:Connect(function(player: Player, packet: unknown)
 	DataCollector.recordAction(pid, aid)
 end)
 
--- ── Stimulus event ───────────────────────────────────────────
 -- No payload needed — just signal arrival is sufficient.
 -- Still encrypted to prevent forged timings.
 StimulusEvent.OnServerEvent:Connect(function(player: Player, packet: unknown)
@@ -154,7 +135,6 @@ StimulusEvent.OnServerEvent:Connect(function(player: Player, packet: unknown)
 	DataCollector.recordStimulus(player.UserId)
 end)
 
--- ── Hit event ────────────────────────────────────────────────
 -- Wire format (plaintext after decode, little-endian):
 --   bytes 1-4  : victimId  (u32)
 --   bytes 5-8  : posX      (f32 approximated as 4 bytes via pack)
@@ -216,7 +196,6 @@ HitEvent.OnServerEvent:Connect(function(attacker: Player, packet: unknown)
 	DataCollector.recordShot(attackerPid, true)
 end)
 
--- ── Analysis pipeline (5 Hz) ─────────────────────────────────
 local ANALYSIS_DT : number = 1 / 5
 local _anAcc      : number = 0.0
 local _lastT      : { [Types.PlayerId]: number } = {}
@@ -253,7 +232,6 @@ RunService.Heartbeat:Connect(function(dt: number)
 	end
 end)
 
--- ── Public API ────────────────────────────────────────────────
 
 local AntiCheatService = {}
 
@@ -287,7 +265,6 @@ function AntiCheatService.reportDeath(player: Player): ()
 	DataCollector.recordDeath(player.UserId)
 end
 
--- ── v3: register a physics event (explosion, dash, knockback) ─
 -- Call this BEFORE applying the force so the detector has time
 -- to see the whitelist entry.
 -- duration : seconds the leniency lasts (usually 0.5–2.0)
