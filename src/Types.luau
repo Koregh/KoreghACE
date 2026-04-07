@@ -1,23 +1,9 @@
 --!strict
 --!optimize 2
 
--- ============================================================
---  Types.luau  v3.0
---  Single source of truth for every type in the system.
---  Rule: if it crosses a module boundary, it lives here.
---
---  v3 additions:
---    • fps field in Sample and wFps Welford in PlayerProfile
---    • CFrameTracker gets individual baseline for sensitivity
---    • PhysicsEvent for legitimate force whitelisting
---    • SessionKey for per-player XOR stream cipher
---    • anomaly ring fields (anomalyHead / anomalySize)
---    • REPLAY_ATTACK AnomalyKind
--- ============================================================
 
 export type PlayerId = number
 
--- ── Raw telemetry sample (20 Hz ring) ───────────────────────
 export type Sample = {
 	t          : number,    -- os.clock() monotonic
 	pos        : Vector3,
@@ -31,14 +17,12 @@ export type Sample = {
 	fps        : number,    -- client-reported; default 60 if unknown
 }
 
--- ── Welford online accumulator ───────────────────────────────
 export type Welford = {
 	n    : number,
 	mean : number,
 	M2   : number,
 }
 
--- ── Markov ───────────────────────────────────────────────────
 export type MarkovMatrix = { [number]: { [number]: number } }
 export type MarkovModel  = {
 	matrix      : MarkovMatrix,
@@ -46,7 +30,6 @@ export type MarkovModel  = {
 	totalEdges  : number,
 }
 
--- ── IET tracker ──────────────────────────────────────────────
 export type IETTracker = {
 	intervals : { number },
 	head      : number,
@@ -54,7 +37,6 @@ export type IETTracker = {
 	wIET      : Welford,
 }
 
--- ── CFrame tracker ───────────────────────────────────────────
 export type CFrameTracker = {
 	samples       : { CFrame },
 	head          : number,
@@ -64,7 +46,6 @@ export type CFrameTracker = {
 	baselineReady : boolean,     -- true once wDeltaBase has enough data
 }
 
--- ── Session aggregates ────────────────────────────────────────
 export type SessionStats = {
 	kills         : number,
 	deaths        : number,
@@ -76,23 +57,7 @@ export type SessionStats = {
 	sessionStart  : number,
 }
 
--- ── Physics event whitelist ───────────────────────────────────
--- Registered by the game when it applies legitimate forces.
--- While any event is active, speed/teleport checks are relaxed.
-export type PhysicsEvent = {
-	expiresAt     : number,   -- os.clock()
-	maxSpeedStuds : number,   -- per-event override
-}
 
--- ── Per-session XOR stream cipher ────────────────────────────
--- 128-bit key generated server-side per player connection.
--- Nonce is monotonic; server rejects any nonce ≤ last seen.
-export type SessionKey = {
-	key   : { number },  -- 16 bytes [0,255]
-	nonce : number,
-}
-
--- ── Population baseline ───────────────────────────────────────
 export type PopulationTier = {
 	label        : string,
 	minKills     : number,
@@ -104,7 +69,6 @@ export type PopulationTier = {
 }
 export type PopulationBaseline = { PopulationTier }
 
--- ── Hit validation ────────────────────────────────────────────
 export type HitRequest = {
 	victimId    : PlayerId,
 	clientPos   : Vector3,
@@ -118,7 +82,6 @@ export type HitResult = {
 	rejectCode : string?,
 }
 
--- ── Anomaly record ────────────────────────────────────────────
 export type AnomalyKind =
 	  "Z_SCORE_SPIKE"
 	| "MARKOV_RARE_SEQ"
@@ -147,7 +110,6 @@ export type AnomalyRecord = {
 	raw       : Sample,
 }
 
--- ── Suspicion state machine ───────────────────────────────────
 export type SuspicionLevel =
 	  "CLEAN"
 	| "MONITOR"
@@ -156,7 +118,6 @@ export type SuspicionLevel =
 	| "SHADOWBAN"
 	| "REMOVE"
 
--- ── Full per-player profile ───────────────────────────────────
 export type PlayerProfile = {
 	playerId    : PlayerId,
 	accountAge  : number,
@@ -165,7 +126,7 @@ export type PlayerProfile = {
 	wCps        : Welford,
 	wAccuracy   : Welford,
 	wSpeed      : Welford,
-	wFps        : Welford,      -- v3: fps baseline
+	wFps        : Welford,      
 
 	iet         : IETTracker,
 	cfTracker   : CFrameTracker,
@@ -192,11 +153,10 @@ export type PlayerProfile = {
 	lastServerPos : Vector3,
 	lastPosTime   : number,
 
-	physicsEvents : { PhysicsEvent },  -- v3: force whitelist
-	sessionKey    : SessionKey,         -- v3: per-session crypto
+	physicsEvents : { PhysicsEvent }, 
+	sessionKey    : SessionKey,         
 }
 
--- ── Decision ──────────────────────────────────────────────────
 export type Decision = {
 	action    : "NONE" | "WARN" | "RESTRICT" | "SHADOWBAN" | "REMOVE",
 	reason    : string,
