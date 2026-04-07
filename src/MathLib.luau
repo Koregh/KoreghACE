@@ -2,24 +2,10 @@
 --!optimize 2
 --!native
 
--- ============================================================
---  MathLib.luau  v3.0 — Low-level computational mathematics
---  All functions: pure, @inline where applicable, zero alloc.
---
---  v3 additions:
---    • fpsScaleFactor   — normalise thresholds by player FPS
---    • reactionFpsFloor — minimum reaction given FPS frame time
---    • sensitivityZ     — CFrame z-score relative to own baseline
---    • activePhysicsMax — max speed considering physics events
--- ============================================================
-
 local MathLib = {}
 
--- ── Constants ────────────────────────────────────────────────
 local INV_SQRT2PI : number = 0.3989422804014327
 local LN2         : number = 0.6931471805599453
-
--- ── Welford Online Mean/Variance ─────────────────────────────
 
 @inline
 function MathLib.welfordPush(n: number, mean: number, M2: number, x: number)
@@ -42,7 +28,6 @@ function MathLib.welfordStddev(n: number, M2: number): number
 	return math.sqrt(MathLib.welfordVariance(n, M2))
 end
 
--- ── Z-score & p-value ────────────────────────────────────────
 
 @inline
 function MathLib.zScore(x: number, mean: number, stddev: number): number
@@ -67,7 +52,6 @@ function MathLib.pValue(z: number): number
 	return 2.0 * (1.0 - MathLib.normalCDF(math.abs(z)))
 end
 
--- ── Exponential decay ────────────────────────────────────────
 
 @inline
 function MathLib.expDecay(value: number, dt: number, halfLife: number): number
@@ -75,7 +59,6 @@ function MathLib.expDecay(value: number, dt: number, halfLife: number): number
 	return value * math.exp(-(LN2 / halfLife) * dt)
 end
 
--- ── Pearson correlation coefficient ──────────────────────────
 function MathLib.pearson(xs: { number }, ys: { number }): number
 	local n : number = math.min(#xs, #ys)
 	if n < 2 then return 0.0 end
@@ -99,7 +82,6 @@ function MathLib.pearson(xs: { number }, ys: { number }): number
 	return num / den
 end
 
--- ── Angular delta between two CFrames ────────────────────────
 @inline
 function MathLib.cframeDelta(a: CFrame, b: CFrame): number
 	local dot : number = math.clamp(a.LookVector:Dot(b.LookVector), -1.0, 1.0)
@@ -112,14 +94,12 @@ function MathLib.angularVelocity(a: CFrame, b: CFrame, dt: number): number
 	return MathLib.cframeDelta(a, b) / dt
 end
 
--- ── Vector3 speed ─────────────────────────────────────────────
 @inline
 function MathLib.speed(v: Vector3): number
 	local x = v.X; local y = v.Y; local z = v.Z
 	return math.sqrt(x*x + y*y + z*z)
 end
 
--- ── Ping-compensated position threshold ──────────────────────
 @inline
 function MathLib.positionThreshold(
 	speed       : number,
@@ -130,14 +110,12 @@ function MathLib.positionThreshold(
 	return speed * window + errorMargin
 end
 
--- ── Coefficient of variation ──────────────────────────────────
 @inline
 function MathLib.cv(mean: number, stddev: number): number
 	if math.abs(mean) < 1e-9 then return 0.0 end
 	return stddev / math.abs(mean)
 end
 
--- ── Markov ───────────────────────────────────────────────────
 function MathLib.markovProbSmoothed(
 	matrix      : { [number]: { [number]: number } },
 	stateCounts : { [number]: number },
@@ -152,7 +130,6 @@ function MathLib.markovProbSmoothed(
 	return count / rowSum
 end
 
--- ── Shannon entropy (normalised) ──────────────────────────────
 function MathLib.entropyNorm(
 	row      : { [number]: number },
 	rowSum   : number,
@@ -167,7 +144,6 @@ function MathLib.entropyNorm(
 	return H / math.log(math.max(vocabSize, 2))
 end
 
--- ── Clamp utilities ──────────────────────────────────────────
 @inline function MathLib.clamp01(x: number): number
 	return math.max(0.0, math.min(1.0, x))
 end
@@ -176,16 +152,10 @@ end
 	return math.max(0.0, math.min(100.0, x))
 end
 
--- ── Ring index (1-based) ─────────────────────────────────────
 @inline function MathLib.ringIdx(head: number, offset: number, cap: number): number
 	return ((head + offset - 2) % cap) + 1
 end
 
--- ════════════════════════════════════════════════════════════
---  v3 additions
--- ════════════════════════════════════════════════════════════
-
--- ── FPS scale factor ─────────────────────────────────────────
 -- Returns a multiplier (≥1) that relaxes thresholds for low-fps
 -- players. At TARGET_FPS (60) the factor is 1.0.
 -- At 20 fps it returns ~1.73; at 10 fps ~2.45.
@@ -201,7 +171,6 @@ function MathLib.fpsScaleFactor(fps: number): number
 	return math.sqrt(TARGET_FPS / safeFps)
 end
 
--- ── Reaction-time FPS floor ───────────────────────────────────
 -- The minimum measurable reaction at a given FPS is one frame.
 -- Below this value a reaction is physically impossible regardless
 -- of how fast the player is — the client simply cannot have
@@ -214,7 +183,6 @@ function MathLib.reactionFpsFloor(fps: number): number
 	return (2.0 / safeFps) * 1000.0
 end
 
--- ── CFrame z-score relative to individual baseline ───────────
 -- Compares the latest angular velocity against the player's own
 -- established baseline (wDeltaBase), not a global constant.
 -- This neutralises the effect of mouse sensitivity / DPI.
@@ -230,7 +198,6 @@ function MathLib.sensitivityZ(
 	return MathLib.zScore(angVel, baselineMean, stddev)
 end
 
--- ── Active physics max speed ─────────────────────────────────
 -- Returns the effective max speed for a player considering any
 -- active physics events (explosions, dashes, knockback).
 -- physicsEvents : array of PhysicsEvent (may be empty)
@@ -252,7 +219,6 @@ function MathLib.activePhysicsMax(
 	return best
 end
 
--- ── Purge expired physics events (mutates array in-place) ────
 function MathLib.purgeExpiredPhysics(
 	events : { { expiresAt: number, maxSpeedStuds: number } },
 	now    : number
