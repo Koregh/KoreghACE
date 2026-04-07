@@ -2,25 +2,12 @@
 --!optimize 2
 --!native
 
--- ============================================================
---  HitValidator.luau  v2.0
---  Server-authoritative hit validation.
---  Checks: range, geometry (raycast), rate limiting.
---  The client sends hit requests; the server decides if valid.
---
---  Key insight from devforum research:
---    DO NOT do frame-perfect position checks — use time-window
---    averages with ping compensation to avoid false positives.
---    Instantaneous checks are unreliable on Roblox's network.
--- ============================================================
-
 local Players     = game:GetService("Players")
 local Workspace   = game:GetService("Workspace")
 
 local Types   = require(script.Parent.Parent.Shared.Types)
 local MathLib = require(script.Parent.Parent.Shared.MathLib)
 
--- ── Config ───────────────────────────────────────────────────
 local CFG = {
 	-- Extra lenience added on top of ping compensation (studs).
 	-- Accounts for Roblox physics jitter & replication lag.
@@ -52,7 +39,6 @@ function HitValidator.addIgnore(instance: Instance): ()
 	_ignoreParams.FilterDescendantsInstances = _ignoreList
 end
 
--- ── Rate limiter ──────────────────────────────────────────────
 -- Uses a token-bucket-style sliding window per player.
 local function checkHitRate(profile: Types.PlayerProfile): boolean
 	local now : number = os.clock()
@@ -67,7 +53,6 @@ local function checkHitRate(profile: Types.PlayerProfile): boolean
 	return profile.hitCount <= CFG.MAX_HIT_RATE
 end
 
--- ── Geometry validation ───────────────────────────────────────
 -- Casts a ray from attacker's server position to victim's server
 -- position. If something solid is in between, the hit is
 -- geometrically impossible (wallbang without penetration).
@@ -106,7 +91,6 @@ local function checkGeometry(
 	return true   -- clear line of sight
 end
 
--- ── Range validation (ping-compensated) ───────────────────────
 -- Compares the attacker's claimed client position at hit time
 -- against the server's last known position of the victim,
 -- accounting for network latency.
@@ -145,7 +129,6 @@ local function checkRange(
 	return distToVictim <= maxAllowed
 end
 
--- ── Main validation entry point ───────────────────────────────
 --[[
 	Call this from your combat RemoteEvent handler.
 	Returns HitResult { valid, rejectCode }.
@@ -161,17 +144,17 @@ function HitValidator.validate(
 	victimProfile   : Types.PlayerProfile
 ): Types.HitResult
 
-	-- 1. Rate limit
+	-- Rate limit
 	if not checkHitRate(attackerProfile) then
 		return { valid = false, rejectCode = "RATE" }
 	end
 
-	-- 2. Range check (ping-compensated)
+	-- Range check (ping-compensated)
 	if not checkRange(attackerProfile, victimProfile, req.clientPos, req.weaponRange) then
 		return { valid = false, rejectCode = "RANGE" }
 	end
 
-	-- 3. Geometry (raycast line-of-sight)
+	-- Geometry (raycast line-of-sight)
 	local attackerPos : Vector3 = attackerProfile.lastServerPos
 	local victimPos   : Vector3 = victimProfile.lastServerPos
 
@@ -182,7 +165,6 @@ function HitValidator.validate(
 	return { valid = true, rejectCode = nil }
 end
 
--- Expose config for runtime tuning
 HitValidator.CFG = CFG
 
 return HitValidator
