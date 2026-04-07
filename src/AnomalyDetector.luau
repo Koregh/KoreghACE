@@ -14,7 +14,7 @@ local CFG = {
 	Z_ACCURACY   = 3.0,
 	Z_SPEED      = 4.0,
 	Z_IET        = 3.0,
-	Z_CFRAME     = 3.5,   -- v3: used for individual-baseline z-score
+	Z_CFRAME     = 3.5,   
 
 	-- Absolute human limits
 	MIN_REACTION_MS  = 70,     -- below AND below fps floor = superhuman
