@@ -2,10 +2,6 @@
 --!optimize 2
 --!native
 
--- ============================================================
---  StatsEngine.luau  v2.0
---  Pure statistical processing — no side effects.
--- ============================================================
 
 local Types   = require(script.Parent.Parent.Shared.Types)
 local MathLib = require(script.Parent.Parent.Shared.MathLib)
