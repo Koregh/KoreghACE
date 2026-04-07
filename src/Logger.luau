@@ -1,11 +1,6 @@
 --!strict
 --!optimize 2
 
--- ============================================================
---  Logger.luau  v2.0 — Unchanged architecture from v1.
---  In-memory ring (1000) + async DataStore flush (30s).
--- ============================================================
-
 local DataStoreService = game:GetService("DataStoreService")
 local RunService       = game:GetService("RunService")
 local Types            = require(script.Parent.Parent.Shared.Types)
