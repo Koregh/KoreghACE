@@ -1,6 +1,5 @@
 --!strict
 
--- ========================================================================
 -- HOW TO USE:
 -- Replace the values ​​below with actual data from YOUR game.
 -- Each tier maps a range of kills to expected percentiles.
@@ -16,7 +15,6 @@
 -- reliable at the end of the session to collect real values.
 -- Do this for ~50 players per tier for solid percentiles.
 --
--- ══════════════════════════════ ══════════════════════════════
 --
 -- Metrics source:
 -- • Reaction time: CS2 performance studies (leetify.com)
@@ -38,10 +36,9 @@
 --
 -- NOTE: These values ​​are approximations for a Roblox FPS game
 -- with mechanics similar to CS2. Calibrate with your own data.
--- ========================================================================
+
 local Types = require(script.Parent.Types)
 
--- ── Developer configuration block ────────────────────────────
 -- ENABLED = false → sistema roda em adaptive-only (ignora tiers).
 local ENABLED : boolean = true
 
@@ -57,7 +54,6 @@ local ENABLED : boolean = true
 
 local DEFAULT_TIERS : Types.PopulationBaseline = {
 
-	-- ──────────────────────────────────────────────────────────
 	--  Tier 1 · Silver  (0 – 99 kills)
 	--  Rank CS2 equiv.: Silver I → Silver Elite Master
 	--
@@ -70,7 +66,6 @@ local DEFAULT_TIERS : Types.PopulationBaseline = {
 	--    accuracy p50 ≈ 22%    (CS2 Silver match accuracy avg)
 	--    speed    p50 ≈ 14     (movimento cauteloso, poucos sprints)
 	--    cps      p50 ≈ 3.5    (pistol/semi-auto casual)
-	-- ──────────────────────────────────────────────────────────
 	{
 		label    = "silver",
 		minKills = 0,
@@ -81,7 +76,6 @@ local DEFAULT_TIERS : Types.PopulationBaseline = {
 		headshotRate = { p50 = 0.18, p95 = 0.42 },
 	},
 
-	-- ──────────────────────────────────────────────────────────
 	--  Tier 2 · Gold Nova / Master Guardian  (100 – 999 kills)
 	--  Rank CS2 equiv.: Gold Nova I → Master Guardian Elite
 	--
@@ -94,7 +88,6 @@ local DEFAULT_TIERS : Types.PopulationBaseline = {
 	--    accuracy p50 ≈ 38%    (CS2 MG match accuracy avg)
 	--    speed    p50 ≈ 15     (começa a usar counter-strafing)
 	--    cps      p50 ≈ 4.5    (rifles fully-auto mais comuns)
-	-- ──────────────────────────────────────────────────────────
 	{
 		label    = "gold_nova",
 		minKills = 100,
@@ -105,7 +98,6 @@ local DEFAULT_TIERS : Types.PopulationBaseline = {
 		headshotRate = { p50 = 0.28, p95 = 0.52 },
 	},
 
-	-- ──────────────────────────────────────────────────────────
 	--  Tier 3 · DMG / Legendary Eagle  (1 000 – 9 999 kills)
 	--  Rank CS2 equiv.: Distinguished MG → Legendary Eagle Master
 	--
@@ -118,7 +110,6 @@ local DEFAULT_TIERS : Types.PopulationBaseline = {
 	--    accuracy p50 ≈ 54%    (CS2 Eagle match accuracy avg)
 	--    speed    p50 ≈ 15.5   (counter-strafe quase sempre)
 	--    cps      p50 ≈ 5.5    (mecânica apurada, tap+burst)
-	-- ──────────────────────────────────────────────────────────
 	{
 		label    = "dmg_eagle",
 		minKills = 1_000,
@@ -129,7 +120,6 @@ local DEFAULT_TIERS : Types.PopulationBaseline = {
 		headshotRate = { p50 = 0.40, p95 = 0.63 },
 	},
 
-	-- ──────────────────────────────────────────────────────────
 	--  Tier 4 · Global Elite / Faceit 10  (10 000+ kills)
 	--  Rank CS2 equiv.: Supreme → Global Elite / Faceit Level 10
 	--
@@ -149,7 +139,6 @@ local DEFAULT_TIERS : Types.PopulationBaseline = {
 	--    Valores acima de 0.92 em sessão longa (>100 tiros) são
 	--    fortemente suspeitos. ACCURACY_CEIL no AnomalyDetector
 	--    está em 0.97 — ajuste para 0.92 se o jogo for FPS puro.
-	-- ──────────────────────────────────────────────────────────
 	{
 		label    = "global_elite",
 		minKills = 10_000,
