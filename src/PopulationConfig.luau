@@ -1,66 +1,59 @@
 --!strict
 
--- ============================================================
---  PopulationConfig.luau  v2.1
---  Static population baseline configurado pelo desenvolvedor.
+-- ========================================================================
+-- HOW TO USE:
+-- Replace the values ​​below with actual data from YOUR game.
+-- Each tier maps a range of kills to expected percentiles.
+-- The system compares each player against the tier they correspond to
+-- to your kill count — not just against your own record.
 --
---  HOW TO USE:
---    Substitua os valores abaixo por dados reais do SEU jogo.
---    Cada tier mapeia um range de kills para percentis esperados.
---    O sistema compara cada jogador contra o tier que corresponde
---    ao seu kill count — não apenas contra seu próprio histórico.
+-- If you don't have real data yet, use the defaults below
+-- as a starting point. The system runs in adaptive-only mode
+-- when no tier matches the player.
 --
---    Se você não tiver dados reais ainda, use os defaults abaixo
---    como ponto de partida. O sistema roda em adaptive-only mode
---    quando nenhum tier bate com o jogador.
+-- HOW TO COLLECT DATA:
+-- Call AntiCheatService.dumpSessionStats() on players
+-- reliable at the end of the session to collect real values.
+-- Do this for ~50 players per tier for solid percentiles.
 --
---  HOW TO COLLECT DATA:
---    Chame AntiCheatService.dumpSessionStats() em jogadores
---    confiáveis ao fim da sessão para coletar valores reais.
---    Faça isso para ~50 jogadores por tier para percentis sólidos.
+-- ══════════════════════════════ ══════════════════════════════
 --
---  ════════════════════════════════════════════════════════════
---  EXEMPLO COM MÉTRICAS DO CS2 (Counter-Strike 2)
---  ════════════════════════════════════════════════════════════
+-- Metrics source:
+-- • Reaction time: CS2 performance studies (leetify.com)
+-- • Headshot rate : leetify.com population data 2024
+-- • Accuracy: CS2 Match Stats (Valve + community trackers)
+-- • Speed ​​(studs/s): CS2 → Roblox mapping:
+-- CS2 walking = 130 u/s ≈ 8 studs/s
+-- CS2 running = 250 u/s ≈ 16 studs/s (default Roblox walk)
+-- CS2 knife = 260 u/s ≈ 17 studs/s
+-- • CPS: frequency of player actions (not just shots)
+-- Includes use of skills, weapon switching, jumps, etc.
+-- CS2 rifles fire at ~10 RPS; pistols ~4–8 RPS.
 --
---  Fonte das métricas:
---    • Reaction time : estudos de performance CS2 (leetify.com)
---    • Headshot rate : leetify.com population data 2024
---    • Accuracy      : CS2 Match Stats (Valve + community trackers)
---    • Speed (studs/s): CS2 → Roblox mapping:
---        CS2 walking  = 130 u/s ≈  8 studs/s
---        CS2 running  = 250 u/s ≈ 16 studs/s  (default Roblox walk)
---        CS2 knife    = 260 u/s ≈ 17 studs/s
---    • CPS: frequência de ações do jogador (não apenas disparos)
---        Inclui uso de habilidades, troca de arma, jumps, etc.
---        CS2 rifles disparam a ~10 RPS; pistols ~4–8 RPS.
+-- Tiers mapped by equivalent CS2 rank:
+-- Tier 1 (0–99 kills) → Silver I – Silver Elite Master
+-- Tier 2 (100–999 kills) → Gold Nova – Master Guardian Elite
+-- Tier 3 (1k–9.9k kills) → DMG – Legendary Eagle Master
+-- Tier 4 (10k+ kills) → Supreme – Global Elite / Faceit 10
 --
---  Tiers mapeados por rank CS2 equivalente:
---    Tier 1 (0–99 kills)     → Silver I – Silver Elite Master
---    Tier 2 (100–999 kills)  → Gold Nova – Master Guardian Elite
---    Tier 3 (1k–9.9k kills)  → DMG – Legendary Eagle Master
---    Tier 4 (10k+ kills)     → Supreme – Global Elite / Faceit 10
---
---  NOTA: Estes valores são aproximações para um jogo Roblox FPS
---  com mecânicas similares ao CS2. Calibre com seus próprios dados.
--- ============================================================
-
+-- NOTE: These values ​​are approximations for a Roblox FPS game
+-- with mechanics similar to CS2. Calibrate with your own data.
+-- ========================================================================
 local Types = require(script.Parent.Types)
 
 -- ── Developer configuration block ────────────────────────────
 -- ENABLED = false → sistema roda em adaptive-only (ignora tiers).
 local ENABLED : boolean = true
 
--- ── CS2-calibrated population tiers ──────────────────────────
 --
---  reaction     : ms   — tempo de reação (estímulo visual → input)
---  cps          : n/s  — ações por segundo (clicks, habilidades)
---  accuracy     : [0,1]— % de tiros que acertam um alvo
---  speed        : studs/s — velocidade de movimento observada
---  headshotRate : [0,1]— % de kills que são headshot
+-- reaction : ms — reaction time (visual stimulus → input)
+-- cps : n/s — actions per second (clicks, skills)
+-- accuracy : [0.1]— % of shots that hit a target
+-- speed : studs/s — observed movement speed
+-- headshotRate : [0.1] — % of kills that are headshot
 --
---  p50 = mediana esperada para jogadores deste tier
---  p95 = teto do percentil 95 — acima disso é outlier de população
+-- p50 = expected median for players in this tier
+-- p95 = ceiling of the 95th percentile — above this is a population outlier
 
 local DEFAULT_TIERS : Types.PopulationBaseline = {
 
@@ -168,21 +161,15 @@ local DEFAULT_TIERS : Types.PopulationBaseline = {
 	},
 }
 
--- ── Developer override point ──────────────────────────────────
--- Substitua DEFAULT_TIERS pelos seus dados reais aqui.
+-- Replace DEFAULT_TIERS with your actual data here.
 local TIERS : Types.PopulationBaseline = DEFAULT_TIERS
 
--- ── API ───────────────────────────────────────────────────────
 
 local PopulationConfig = {}
 
 PopulationConfig.ENABLED = ENABLED
 
---[[
-	Retorna o tier que bate com o kill count do jogador.
-	Retorna nil se ENABLED = false ou nenhum tier bater.
-	Tiers ordenados por minKills ascendente; o último que bater ganha.
-]]
+
 function PopulationConfig.getTier(kills: number): Types.PopulationTier?
 	if not ENABLED then return nil end
 
@@ -195,12 +182,7 @@ function PopulationConfig.getTier(kills: number): Types.PopulationTier?
 	return matched
 end
 
---[[
-	Retorna quantos desvios padrão acima do p95 um valor está.
-	Usado para calcular a severidade de outlier de população.
-	Assume que a distribuição entre p50 e p95 cobre ~1.65 σ
-	(percentil 95 da normal padrão → z = 1.6449).
-]]
+
 function PopulationConfig.outlierSeverity(
 	value : number,
 	p50   : number,
