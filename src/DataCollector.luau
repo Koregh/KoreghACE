@@ -2,19 +2,6 @@
 --!optimize 2
 --!native
 
--- ============================================================
---  DataCollector.luau  v3.0
---  Collects all raw telemetry. Zero allocation in hot path.
---
---  v3 changes:
---    • Sample now includes fps field
---    • CPS window uses a ring buffer (no table.move / O(n) shift)
---    • CFrameTracker builds individual baseline (first BASELINE_N)
---    • wFps Welford tracks player fps
---    • PhysicsEvent whitelist API added
---    • SessionKey initialised per profile
---    • Anomaly list replaced with fixed-size ring in profile
--- ============================================================
 
 local RunService = game:GetService("RunService")
 local Players    = game:GetService("Players")
@@ -23,7 +10,6 @@ local Types     = require(script.Parent.Parent.Shared.Types)
 local MathLib   = require(script.Parent.Parent.Shared.MathLib)
 local CryptoLib = require(script.Parent.Parent.Shared.CryptoLib)
 
--- ── Config ───────────────────────────────────────────────────
 local SAMPLE_CAP   : number = 256    -- power-of-two
 local IET_CAP      : number = 64
 local CF_CAP       : number = 32
@@ -37,23 +23,19 @@ local CF_BASELINE_N: number = 60     -- samples to build CFrame baseline
 -- Head points to oldest slot; we count how many are within window.
 local CPS_CAP : number = 64          -- max physically possible in 1 s
 
--- ── State ────────────────────────────────────────────────────
 local _profiles  : { [Types.PlayerId]: Types.PlayerProfile } = {}
 -- Per-player CPS ring: { times, head, size }
 local _cpsRings  : { [Types.PlayerId]: { times: { number }, head: number, size: number } } = {}
 local _stimulusT : { [Types.PlayerId]: number }              = {}
 local _lastReact : { [Types.PlayerId]: number }              = {}
 
--- ── Sentinel / zero values ────────────────────────────────────
 local ZERO_CF   : CFrame  = CFrame.identity
 local ZERO_V3   : Vector3 = Vector3.zero
 
--- ── Welford factory ──────────────────────────────────────────
 local function newWelford(): Types.Welford
 	return { n = 0, mean = 0.0, M2 = 0.0 }
 end
 
--- ── IET factory ──────────────────────────────────────────────
 local function newIET(): Types.IETTracker
 	return {
 		intervals = table.create(IET_CAP, 0.0),
@@ -63,7 +45,6 @@ local function newIET(): Types.IETTracker
 	}
 end
 
--- ── CFrame tracker factory ────────────────────────────────────
 local function newCFTracker(): Types.CFrameTracker
 	return {
 		samples       = table.create(CF_CAP, ZERO_CF),
@@ -75,7 +56,6 @@ local function newCFTracker(): Types.CFrameTracker
 	}
 end
 
--- ── Session factory ───────────────────────────────────────────
 local function newSession(): Types.SessionStats
 	return {
 		kills         = 0,
@@ -89,7 +69,6 @@ local function newSession(): Types.SessionStats
 	}
 end
 
--- ── Profile factory ───────────────────────────────────────────
 local function newProfile(pid: Types.PlayerId, player: Player): Types.PlayerProfile
 	local buf : { Types.Sample } = table.create(SAMPLE_CAP)
 	local sentinel : Types.Sample = {
@@ -150,7 +129,6 @@ local function newProfile(pid: Types.PlayerId, player: Player): Types.PlayerProf
 	}
 end
 
--- ── CPS ring (O(1) push, O(count) query — count ≤ CPS_CAP) ───
 local function newCpsRing(): { times: { number }, head: number, size: number }
 	return { times = table.create(CPS_CAP, 0.0), head = 1, size = 0 }
 end
@@ -161,7 +139,6 @@ local function cpsRingPush(ring: { times: { number }, head: number, size: number
 	ring.size  = math.min(ring.size + 1, CPS_CAP)
 end
 
--- Count clicks within the last 1 s — O(CPS_CAP) = O(64)
 local function cpsCount(ring: { times: { number }, head: number, size: number }, now: number): number
 	local cutoff : number = now - 1.0
 	local times  : { number } = ring.times
@@ -180,7 +157,6 @@ local function cpsCount(ring: { times: { number }, head: number, size: number },
 	return count
 end
 
--- ── IET push (inline, no alloc) ──────────────────────────────
 local function pushIET(iet: Types.IETTracker, now: number): ()
 	local last : number = iet.lastTime
 	if last <= 0.0 then iet.lastTime = now; return end
@@ -192,7 +168,6 @@ local function pushIET(iet: Types.IETTracker, now: number): ()
 	w.n, w.mean, w.M2 = MathLib.welfordPush(w.n, w.mean, w.M2, deltaMs)
 end
 
--- ── CFrame tracker push ───────────────────────────────────────
 local function pushCFrame(cft: Types.CFrameTracker, cf: CFrame, dt: number): ()
 	local prev : CFrame = cft.samples[(((cft.head - 2) % CF_CAP) + 1)]
 	local angV : number = MathLib.angularVelocity(prev, cf, dt)
@@ -215,7 +190,6 @@ local function pushCFrame(cft: Types.CFrameTracker, cf: CFrame, dt: number): ()
 	end
 end
 
--- ── Main sample tick ──────────────────────────────────────────
 local _acc     : number = 0.0
 
 local function samplePlayer(pid: Types.PlayerId, player: Player, dt: number): ()
@@ -283,7 +257,6 @@ RunService.Heartbeat:Connect(function(dt: number)
 	end
 end)
 
--- ── Public API ────────────────────────────────────────────────
 
 local DataCollector = {}
 
@@ -372,7 +345,6 @@ function DataCollector.recordShot(pid: Types.PlayerId, hit: boolean): ()
 	if hit then s.totalHits += 1 end
 end
 
--- ── v3: client fps update (called from AntiCheatService on handshake) ──
 function DataCollector.updateFps(pid: Types.PlayerId, fps: number): ()
 	local profile : Types.PlayerProfile? = _profiles[pid]
 	if not profile then return end
@@ -382,7 +354,6 @@ function DataCollector.updateFps(pid: Types.PlayerId, fps: number): ()
 	w.n, w.mean, w.M2 = MathLib.welfordPush(w.n, w.mean, w.M2, safeFps)
 end
 
--- ── v3: register a legitimate physics event ──────────────────
 -- Call from your explosion / dash / knockback code BEFORE the
 -- force is applied so the detector does not flag the frame.
 -- duration   : seconds the leniency should last
@@ -411,7 +382,6 @@ function DataCollector.getLatestSample(pid: Types.PlayerId): Types.Sample?
 	return p.buffer[idx]
 end
 
--- ── Auto register / unregister ────────────────────────────────
 Players.PlayerAdded:Connect(function(p: Player) DataCollector.register(p) end)
 Players.PlayerRemoving:Connect(function(p: Player) DataCollector.unregister(p.UserId) end)
 for _, p in Players:GetPlayers() do DataCollector.register(p) end
