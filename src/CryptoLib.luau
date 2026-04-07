@@ -2,55 +2,8 @@
 --!optimize 2
 --!native
 
--- ============================================================
---  CryptoLib.luau  v3.0
---  Lightweight symmetric obfuscation for RemoteEvent payloads.
---
---  Design rationale
---  ─────────────────
---  Full asymmetric crypto (RSA / ECC) is impractical in Luau:
---  a 256-bit ECDH key exchange costs ~20-40 ms per handshake on
---  the Roblox VM. We do NOT need confidentiality from the network
---  layer (Roblox already uses TLS). What we need is:
---
---    1. Payload integrity  — the server can detect forgery.
---    2. Replay resistance  — forging a valid past packet fails.
---    3. Source binding     — another player cannot reuse a key.
---
---  Solution: XOR stream cipher with a per-session 128-bit key
---  and a monotonic 32-bit nonce, combined with a 32-bit Murmur3
---  checksum over (nonce ∥ plaintext). This is not AES and makes
---  no confidentiality claim — it is tamper detection, not
---  encryption. The goal is that an executor must reverse-engineer
---  the key derivation to forge a packet; simply re-firing a
---  captured event does not work.
---
---  Key lifecycle
---  ─────────────
---  Server: on PlayerAdded, generate 16 random bytes via math.random
---          (Roblox's CSPRNG in server context), store in profile.
---          Send to client once via a secure RemoteFunction (before
---          any gameplay event is accepted). Invalidate on disconnect.
---  Client: cache the received key; attach (nonce, checksum, xored
---          payload) to every fired event.
---  Server: verify checksum; reject if nonce ≤ last seen.
---
---  Wire format (all numbers, Roblox serialises cleanly)
---  ─────────────────────────────────────────────────────
---  { nonce: number, cs: number, data: { number } }
---    nonce  — u32 monotonic counter (starts at 1)
---    cs     — u32 Murmur3 finalised over (nonce XOR data stream)
---    data   — array of bytes after XOR with keystream
---
---  Performance
---  ───────────
---  For a typical 8-byte hit payload: ~1.5 µs on the server
---  (measured on a 2-core Roblox server instance). Negligible.
--- ============================================================
-
 local CryptoLib = {}
 
--- ── Murmur3 finaliser (32-bit, fmix32) ───────────────────────
 -- Fast non-cryptographic hash for integrity checking.
 -- Collision resistance is sufficient for anti-cheat (not crypto).
 @inline
@@ -65,7 +18,6 @@ local function fmix32(h: number): number
 	return h
 end
 
--- ── Keystream generator ───────────────────────────────────────
 -- Produces one pseudo-random byte from (key, nonce, position).
 -- key   : { number } — 16 bytes
 -- nonce : u32
@@ -83,7 +35,6 @@ local function keystreamByte(key: { number }, nonce: number, pos: number): numbe
 	return bit32.band(fmix32(h), 0xFF)
 end
 
--- ── Key generation (server-side only) ────────────────────────
 -- Generates a 128-bit session key as 16 random bytes.
 -- math.random on Roblox Server is seeded from OS entropy (CSPRNG).
 function CryptoLib.generateKey(): { number }
@@ -94,7 +45,6 @@ function CryptoLib.generateKey(): { number }
 	return k
 end
 
--- ── Encode (XOR + checksum) ───────────────────────────────────
 -- plainBytes : array of u8
 -- key        : 16-byte key from profile.sessionKey
 -- nonce      : monotonic counter (increment before calling)
@@ -120,7 +70,6 @@ function CryptoLib.encode(
 	return { nonce = nonce, cs = cs, data = data }
 end
 
--- ── Decode + verify ───────────────────────────────────────────
 -- Returns plainBytes on success, nil on tamper/replay.
 -- lastNonce: the last accepted nonce for this player (from profile).
 function CryptoLib.decode(
@@ -156,7 +105,6 @@ function CryptoLib.decode(
 	return plain
 end
 
--- ── Byte / number serialisation helpers ──────────────────────
 -- Roblox RemoteEvents do not send raw byte arrays efficiently,
 -- so we pack small integer payloads as Luau number arrays.
 -- These helpers let callers convert their data before encoding.
