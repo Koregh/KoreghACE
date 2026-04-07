@@ -1,12 +1,6 @@
 --!strict
 --!optimize 2
 
--- ============================================================
---  DecisionEngine.luau  v2.0
---  Suspicion state machine and graduated enforcement.
---  Unchanged logic from v1, extended with better tagging.
--- ============================================================
-
 local Players = game:GetService("Players")
 local Types   = require(script.Parent.Parent.Shared.Types)
 
