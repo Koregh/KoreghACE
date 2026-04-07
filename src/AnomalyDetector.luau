@@ -2,27 +2,12 @@
 --!optimize 2
 --!native
 
--- ============================================================
---  AnomalyDetector.luau  v3.0
---
---  v3 changes:
---    • dReaction: floor is now max(ABS_FLOOR, fpsFloor(fps))
---      so a player at 20 fps is not flagged for ~100ms reaction
---    • dCFrame: uses sensitivityZ against player's OWN baseline
---      instead of a global constant — neutralises DPI/sensitivity
---    • dTeleport: respects active physics events via activePhysicsMax
---    • dSpeed: same physics-event leniency
---    • dRecoil (NEW): pearson-based recoil correlation, now wired in
---    • anomaly push: ring buffer O(1), no table.remove
---    • dGraphics (NEW): relaxes RANGE checks for low-quality graphics
--- ============================================================
 
 local Types            = require(script.Parent.Parent.Shared.Types)
 local MathLib          = require(script.Parent.Parent.Shared.MathLib)
 local StatsEngine      = require(script.Parent.StatsEngine)
 local PopulationConfig = require(script.Parent.Parent.Shared.PopulationConfig)
 
--- ── Config ───────────────────────────────────────────────────
 local CFG = {
 	Z_REACTION   = 3.5,
 	Z_CPS        = 3.5,
@@ -93,7 +78,6 @@ local ANOMALY_CAP : number = 200   -- must match DataCollector
 
 local AnomalyDetector = {}
 
--- ── Ring push (O(1)) ─────────────────────────────────────────
 local function push(
 	profile  : Types.PlayerProfile,
 	kind     : Types.AnomalyKind,
@@ -117,7 +101,6 @@ local function push(
 	profile.anomalySize = math.min(profile.anomalySize + 1, ANOMALY_CAP)
 end
 
--- ── Helper: z-severity ───────────────────────────────────────
 @inline
 local function zSev(z: number, threshold: number): number
 	local absZ : number = math.abs(z)
@@ -125,8 +108,6 @@ local function zSev(z: number, threshold: number): number
 	return MathLib.clamp01((absZ - threshold) / 6.0)
 end
 
--- ── Detector: Reaction time ───────────────────────────────────
--- v3: minimum reaction is MAX(absolute_floor, fps_frame_floor)
 -- This prevents flagging players whose frame time alone explains
 -- a reaction above the 70ms absolute constant.
 local function dReaction(p: Types.PlayerProfile, s: Types.Sample, z: number): number
@@ -148,7 +129,6 @@ local function dReaction(p: Types.PlayerProfile, s: Types.Sample, z: number): nu
 	return sev * CFG.W_REACTION
 end
 
--- ── Detector: CPS ────────────────────────────────────────────
 local function dCPS(p: Types.PlayerProfile, s: Types.Sample, z: number): number
 	if s.cps > CFG.MAX_CPS then
 		local sev : number = MathLib.clamp01((s.cps - CFG.MAX_CPS) / CFG.MAX_CPS)
@@ -161,7 +141,6 @@ local function dCPS(p: Types.PlayerProfile, s: Types.Sample, z: number): number
 	return sev * CFG.W_CPS
 end
 
--- ── Detector: Accuracy ───────────────────────────────────────
 local function dAccuracy(p: Types.PlayerProfile, s: Types.Sample, z: number): number
 	if s.accuracy >= CFG.ACCURACY_CEIL and p.wAccuracy.n >= 30 then
 		local sev : number = MathLib.clamp01(
@@ -176,8 +155,6 @@ local function dAccuracy(p: Types.PlayerProfile, s: Types.Sample, z: number): nu
 	return sev * CFG.W_ACCURACY
 end
 
--- ── Detector: Speed ──────────────────────────────────────────
--- v3: applies fps scale factor AND honours physics events.
 local function dSpeed(p: Types.PlayerProfile, s: Types.Sample, z: number): number
 	local spd : number = MathLib.speed(s.vel)
 
@@ -200,7 +177,6 @@ local function dSpeed(p: Types.PlayerProfile, s: Types.Sample, z: number): numbe
 	return sev * CFG.W_SPEED
 end
 
--- ── Detector: IET ────────────────────────────────────────────
 local function dIET(p: Types.PlayerProfile, s: Types.Sample): number
 	local w : Types.Welford = p.iet.wIET
 	if w.n < CFG.IET_MIN_SAMPLES then return 0.0 end
@@ -215,8 +191,6 @@ local function dIET(p: Types.PlayerProfile, s: Types.Sample): number
 	return 0.0
 end
 
--- ── Detector: CFrame (aimbot trajectory) ─────────────────────
--- v3: PRIMARY signal is z-score vs the player's OWN baseline.
 -- This normalises for mouse sensitivity and DPI.
 -- Global snap threshold kept as a hard upper bound only.
 local function dCFrame(p: Types.PlayerProfile, s: Types.Sample): number
@@ -239,7 +213,6 @@ local function dCFrame(p: Types.PlayerProfile, s: Types.Sample): number
 		return sev * CFG.W_CFRAME
 	end
 
-	-- v3: individual baseline z-score
 	if cft.baselineReady then
 		local wb   : Types.Welford = cft.wDeltaBase
 		local zAng : number = MathLib.sensitivityZ(latest, wb.mean, wb.M2, wb.n)
@@ -265,8 +238,6 @@ local function dCFrame(p: Types.PlayerProfile, s: Types.Sample): number
 	return 0.0
 end
 
--- ── Detector: Teleport ────────────────────────────────────────
--- v3: uses activePhysicsMax + fpsScaleFactor
 local function dTeleport(p: Types.PlayerProfile, s: Types.Sample, prev: Types.Sample): number
 	if p.bufSize < CFG.TELEPORT_MIN_SAMPLES then return 0.0 end
 	local dt : number = s.t - prev.t
@@ -292,7 +263,6 @@ local function dTeleport(p: Types.PlayerProfile, s: Types.Sample, prev: Types.Sa
 	return 0.0
 end
 
--- ── Detector: Markov ─────────────────────────────────────────
 local function dMarkov(p: Types.PlayerProfile, s: Types.Sample, prevAction: number): number
 	if p.markov.totalEdges < CFG.MARKOV_MIN_EDGES then return 0.0 end
 	local prob : number = MathLib.markovProbSmoothed(
@@ -321,7 +291,6 @@ local function dMarkov(p: Types.PlayerProfile, s: Types.Sample, prevAction: numb
 	return 0.0
 end
 
--- ── Detector: Population outlier ─────────────────────────────
 local function dPopulation(p: Types.PlayerProfile, s: Types.Sample): number
 	local tier : Types.PopulationTier? = PopulationConfig.getTier(p.session.kills)
 	if not tier then return 0.0 end
@@ -341,7 +310,6 @@ local function dPopulation(p: Types.PlayerProfile, s: Types.Sample): number
 	return maxSev * CFG.W_POPULATION
 end
 
--- ── Detector: Session headshot rate ──────────────────────────
 local function dSession(p: Types.PlayerProfile, s: Types.Sample): number
 	local sess : Types.SessionStats = p.session
 	if sess.kills < CFG.SESSION_HS_MIN_KILLS then return 0.0 end
@@ -357,7 +325,6 @@ local function dSession(p: Types.PlayerProfile, s: Types.Sample): number
 	return 0.0
 end
 
--- ── Detector: Account integrity ──────────────────────────────
 local function dAccount(p: Types.PlayerProfile, s: Types.Sample): number
 	if p.accountAge > CFG.ACCOUNT_AGE_DAYS then return 0.0 end
 	if p.wAccuracy.n < 30 then return 0.0 end
@@ -373,7 +340,6 @@ local function dAccount(p: Types.PlayerProfile, s: Types.Sample): number
 	return 0.0
 end
 
--- ── Detector: Recoil correlation (v3 — now wired in) ─────────
 -- Compares the last N angular deltas of the camera against the
 -- "perfect inverse recoil" pattern: if a weapon kicks upward by
 -- some pattern and the player's camera mirrors it exactly
@@ -419,7 +385,6 @@ local function dRecoil(
 	return 0.0
 end
 
--- ── Main analysis pass ────────────────────────────────────────
 function AnomalyDetector.analyse(
 	profile    : Types.PlayerProfile,
 	sample     : Types.Sample,
@@ -454,7 +419,6 @@ function AnomalyDetector.analyse(
 	return applied
 end
 
--- ── External: invalid hit ────────────────────────────────────
 function AnomalyDetector.reportInvalidHit(
 	profile    : Types.PlayerProfile,
 	rejectCode : string,
@@ -469,7 +433,6 @@ function AnomalyDetector.reportInvalidHit(
 	)
 end
 
--- ── External: crypto replay ───────────────────────────────────
 function AnomalyDetector.reportReplayAttack(
 	profile : Types.PlayerProfile,
 	sample  : Types.Sample,
@@ -479,7 +442,6 @@ function AnomalyDetector.reportReplayAttack(
 	profile.suspicion = MathLib.clampSusp(profile.suspicion + 0.9 * CFG.DELTA_SCALE)
 end
 
--- ── Latest anomaly (for Logger) ───────────────────────────────
 function AnomalyDetector.latestAnomaly(profile: Types.PlayerProfile): Types.AnomalyRecord?
 	if profile.anomalySize == 0 then return nil end
 	local idx : number = ((profile.anomalyHead - 2) % ANOMALY_CAP) + 1
