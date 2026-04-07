@@ -1,21 +1,7 @@
 --!strict
 --!optimize 2
 
--- ============================================================
---  HealthMonitor.luau  v4.0
---  System health + per-player metrics aggregation.
---
---  Reports:
---    • System status: OK / DEGRADED / FAIL
---    • Validation latency (rolling avg, p95, p99)
---    • Events/sec throughput
---    • Estimated memory footprint
---    • Per-player risk scores and anomaly history
--- ============================================================
-
 local RunService = game:GetService("RunService")
-
--- ── Types ────────────────────────────────────────────────────
 
 export type SystemStatus = "OK" | "DEGRADED" | "FAIL"
 
@@ -52,8 +38,6 @@ export type PlayerMetrics = {
 	ping          : number,
 }
 
--- ── Internal state ────────────────────────────────────────────
-
 local _startTime    : number = os.clock()
 local _eventCount   : number = 0
 local _eventWindow  : number = os.clock()
@@ -79,8 +63,6 @@ local _anHz      : number = 0.0
 -- Registered profile getter (injected by AntiCheatService)
 local _getProfile : ((number) -> any)? = nil
 local _getPlayers : (() -> { any })? = nil
-
--- ── Public API ────────────────────────────────────────────────
 
 local HealthMonitor = {}
 
@@ -119,7 +101,6 @@ function HealthMonitor.recordAnalysisTick(): ()
 	_anTicks += 1
 end
 
--- ── Percentile helper (sorted copy) ──────────────────────────
 local function percentile(ring: { number }, size: number, pct: number): number
 	if size == 0 then return 0.0 end
 	local copy : { number } = table.create(size, 0.0)
@@ -129,14 +110,12 @@ local function percentile(ring: { number }, size: number, pct: number): number
 	return copy[idx]
 end
 
--- ── Memory estimate ───────────────────────────────────────────
 -- Rough: each PlayerProfile ≈ 256 samples * 80 bytes
 --      + 200 AnomalyRecords * 64 bytes
 --      + Welford/Markov overhead ≈ 2 KB
 --      ≈ ~24 KB per player
 local PROFILE_KB_EACH : number = 24
 
--- ── Health snapshot ───────────────────────────────────────────
 function HealthMonitor.snapshot(): HealthSnapshot
 	local now : number = os.clock()
 
@@ -210,7 +189,6 @@ function HealthMonitor.snapshot(): HealthSnapshot
 	}
 end
 
--- ── Per-player metrics ────────────────────────────────────────
 function HealthMonitor.playerMetrics(playerId: number): PlayerMetrics?
 	if not _getProfile then return nil end
 	local profile = _getProfile(playerId)
@@ -260,7 +238,6 @@ function HealthMonitor.playerMetrics(playerId: number): PlayerMetrics?
 	}
 end
 
--- ── Periodic EPS update ───────────────────────────────────────
 RunService.Heartbeat:Connect(function(_dt: number)
 	local now : number = os.clock()
 	if now - _eventWindow >= 5.0 then
