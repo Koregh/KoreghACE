@@ -1,16 +1,6 @@
 --!strict
 --!optimize 2
 
--- ============================================================
---  ActionReporter.luau  v3.0 — CLIENT-SIDE thin reporter
---
---  v3 changes:
---    • Calls AC_Handshake on init → receives session key
---    • All fired events are XOR-encoded via CryptoLib
---    • Sends fps updates every 60 s via AC_FPS
---    • submitHit packs position/range/damage as byte array
--- ============================================================
-
 local Players           = game:GetService("Players")
 local UserInputService  = game:GetService("UserInputService")
 local RunService        = game:GetService("RunService")
@@ -37,12 +27,10 @@ local ActionEvent   : RemoteEvent    = waitEvent("AC_Action")
 local StimulusEvent : RemoteEvent    = waitEvent("AC_Stimulus")
 local HitEvent      : RemoteEvent    = waitEvent("AC_Hit")
 
--- ── Session state ─────────────────────────────────────────────
 local _key   : { number } = {}
 local _nonce : number     = 0
 local _ready : boolean    = false
 
--- ── Handshake ─────────────────────────────────────────────────
 local function doHandshake(): ()
 	local fps : number = math.floor(1 / RunService.RenderStepped:Wait())
 	fps = math.clamp(fps, 5, 240)
@@ -60,7 +48,6 @@ end
 -- Handshake on a background thread so it does not block the client
 task.spawn(doHandshake)
 
--- ── Encode helper ─────────────────────────────────────────────
 local function encode(bytes: { number }): { nonce: number, cs: number, data: { number } }?
 	if not _ready then return nil end
 	_nonce += 1
@@ -72,7 +59,6 @@ local function fireEncoded(remote: RemoteEvent, bytes: { number }): ()
 	if pkt then remote:FireServer(pkt) end
 end
 
--- ── Action ID enum ───────────────────────────────────────────
 local ActionId = {
 	PRIMARY   = 0,
 	SECONDARY = 1,
@@ -85,7 +71,6 @@ local ActionId = {
 	MELEE     = 8,
 }
 
--- ── Debounce ─────────────────────────────────────────────────
 local _lastFire : { [number]: number } = {}
 local DEBOUNCE  : number = 0.016
 
@@ -97,7 +82,6 @@ local function fire(actionId: number): ()
 	fireEncoded(ActionEvent, { actionId })
 end
 
--- ── Input binding ─────────────────────────────────────────────
 UserInputService.InputBegan:Connect(function(input: InputObject, gpe: boolean)
 	if gpe then return end
 	if input.UserInputType == Enum.UserInputType.MouseButton1 then fire(ActionId.PRIMARY)
@@ -107,7 +91,6 @@ UserInputService.InputBegan:Connect(function(input: InputObject, gpe: boolean)
 	end
 end)
 
--- ── FPS reporting ─────────────────────────────────────────────
 -- Send current FPS to server once per minute (unencrypted — not
 -- sensitive, and encryption requires ready state).
 local _fpsTick : number = 0.0
@@ -119,7 +102,6 @@ RunService.Heartbeat:Connect(function(dt: number)
 	FpsEvent:FireServer(fps)
 end)
 
--- ── Public API ────────────────────────────────────────────────
 local ActionReporter = {}
 ActionReporter.ActionId = ActionId
 
