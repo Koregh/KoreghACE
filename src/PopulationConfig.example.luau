@@ -3,7 +3,6 @@
 --  PopulationConfig  —  EXAMPLE / REFERENCE FILE
 --  DO NOT use this file directly in production.
 --  Copy PopulationConfig.luau and fill with your own data.
-
 --
 -- HOW TO USE:
 -- Replace the values below with actual data from YOUR game.
@@ -29,7 +28,7 @@
 --     CS2 walking = 130 u/s ≈  8 studs/s
 --     CS2 running = 250 u/s ≈ 16 studs/s (default Roblox walk)
 --     CS2 knife   = 260 u/s ≈ 17 studs/s
--- • CPS: frequency of player actions (not just shots)
+-- CPS: frequency of player actions (not just shots)
 --     Includes skill use, weapon switching, jumps, etc.
 --     CS2 rifles fire at ~10 RPS; pistols ~4–8 RPS.
 --
@@ -139,6 +138,7 @@ local DEFAULT_TIERS : Types.PopulationBaseline = {
 	--    speed    p50 ≈ 16     (perfect counter-strafe = 250 u/s)
 	--    cps      p50 ≈ 6.5    (high-frequency tap/burst)
 	--
+	--    WARNING:
 	--    accuracy p95 = 0.88 → close to the verifiable human ceiling.
 	--    Values above 0.92 over a long session (>100 shots) are
 	--    strongly suspicious. ACCURACY_CEIL in AnomalyDetector
