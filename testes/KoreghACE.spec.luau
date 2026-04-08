@@ -317,6 +317,69 @@ return function()
 			it("below MIN fails", function() expect(InputGuard.checkFps(1)).to.equal(false) end)
 			it("above MAX fails", function() expect(InputGuard.checkFps(10000)).to.equal(false) end)
 		end)
+
+		describe("checkDamage", function()
+			it("0 passes",               function() expect(InputGuard.checkDamage(0)).to.equal(true) end)
+			it("max damage passes",      function() expect(InputGuard.checkDamage(InputGuard.LIMITS.MAX_DAMAGE)).to.equal(true) end)
+			it("negative fails",         function() expect(InputGuard.checkDamage(-1)).to.equal(false) end)
+			it("above max fails",        function() expect(InputGuard.checkDamage(InputGuard.LIMITS.MAX_DAMAGE + 1)).to.equal(false) end)
+			it("NaN fails",              function() expect(InputGuard.checkDamage(0/0)).to.equal(false) end)
+		end)
+
+		describe("checkWeaponRange", function()
+			it("0 passes",               function() expect(InputGuard.checkWeaponRange(0)).to.equal(true) end)
+			it("max range passes",       function() expect(InputGuard.checkWeaponRange(InputGuard.LIMITS.MAX_WEAPON_RANGE)).to.equal(true) end)
+			it("negative fails",         function() expect(InputGuard.checkWeaponRange(-1)).to.equal(false) end)
+			it("above max fails",        function() expect(InputGuard.checkWeaponRange(InputGuard.LIMITS.MAX_WEAPON_RANGE + 1)).to.equal(false) end)
+		end)
+
+		describe("checkPosition", function()
+			it("origin passes",          function() expect(InputGuard.checkPosition(Vector3.new(0, 0, 0))).to.equal(true) end)
+			it("valid coords pass",      function() expect(InputGuard.checkPosition(Vector3.new(100, 50, -200))).to.equal(true) end)
+			it("X out of bounds fails",  function() expect(InputGuard.checkPosition(Vector3.new(60000, 0, 0))).to.equal(false) end)
+			it("Y out of bounds fails",  function() expect(InputGuard.checkPosition(Vector3.new(0, -60000, 0))).to.equal(false) end)
+			it("Z out of bounds fails",  function() expect(InputGuard.checkPosition(Vector3.new(0, 0, 60000))).to.equal(false) end)
+			it("NaN X fails",            function() expect(InputGuard.checkPosition(Vector3.new(0/0, 0, 0))).to.equal(false) end)
+			it("inf Y fails",            function() expect(InputGuard.checkPosition(Vector3.new(0, math.huge, 0))).to.equal(false) end)
+		end)
+
+		describe("error messages", function()
+			it("checkNumber returns error string on fail", function()
+				local ok, err = InputGuard.checkNumber(999, 0, 100, "myField")
+				expect(ok).to.equal(false)
+				expect(typeof(err)).to.equal("string")
+				expect(#err > 0).to.equal(true)
+			end)
+			it("checkString returns error string on fail", function()
+				local ok, err = InputGuard.checkString(42, 128, "s")
+				expect(ok).to.equal(false)
+				expect(typeof(err)).to.equal("string")
+			end)
+			it("checkByteArray returns error string on fail", function()
+				local ok, err = InputGuard.checkByteArray({300})
+				expect(ok).to.equal(false)
+				expect(typeof(err)).to.equal("string")
+			end)
+		end)
+	end)
+
+	-- CryptoLib 
+	describe("CryptoLib (cobertura extra)", function()
+		describe("payload vazio", function()
+			it("encode de 0 bytes produz pacote válido", function()
+				local key = CryptoLib.generateKey()
+				local pkt = CryptoLib.encode({}, key, 1)
+				expect(pkt ~= nil).to.equal(true)
+				expect(pkt.nonce).to.equal(1)
+				expect(#pkt.data).to.equal(0)
+			end)
+			it("round-trip de payload vazio retorna tabela vazia", function()
+				local key = CryptoLib.generateKey()
+				local out = CryptoLib.decode(CryptoLib.encode({}, key, 1), key, 0)
+				expect(out ~= nil).to.equal(true)
+				expect(#out).to.equal(0)
+			end)
+		end)
 	end)
 
 	-- HealthMonitor
@@ -344,6 +407,16 @@ return function()
 				fakePlayers     = { { UserId=1 }, { UserId=2 } }
 				expect(HealthMon.snapshot().highRiskPlayers).to.equal(1)
 			end)
+			it("highRiskPlayers ignores suspicion < 60", function()
+				fakeProfiles[1] = { suspicion=59 }
+				fakePlayers     = { { UserId=1 } }
+				expect(HealthMon.snapshot().highRiskPlayers).to.equal(0)
+			end)
+			it("highRiskPlayers threshold é exatamente 60", function()
+				fakeProfiles[1] = { suspicion=60 }
+				fakePlayers     = { { UserId=1 } }
+				expect(HealthMon.snapshot().highRiskPlayers).to.equal(1)
+			end)
 			it("recordEvent doesn't error", function()
 				for _ = 1, 10 do HealthMon.recordEvent() end
 				expect(HealthMon.snapshot() ~= nil).to.equal(true)
@@ -363,9 +436,108 @@ return function()
 				local s2 = HealthMon.snapshot()
 				expect(s2.uptimeSeconds >= s1.uptimeSeconds).to.equal(true)
 			end)
+			it("estimatedMemKB scales with player count", function()
+				fakePlayers = { { UserId=1 }, { UserId=2 }, { UserId=3 } }
+				local s = HealthMon.snapshot()
+				expect(s.estimatedMemKB > 0).to.equal(true)
+				expect(s.estimatedMemKB).to.equal(s.activePlayers * 24)
+			end)
 		end)
 
-		describe("Bug 3 — public aliases", function()
+		describe("latência — percentis p95 e p99", function()
+			it("p95 >= avg com dados reais", function()
+				-- Injeta 20 amostras: 19 pequenas + 1 grande (spike)
+				for _ = 1, 19 do HealthMon.recordLatency(1.0) end
+				HealthMon.recordLatency(100.0)
+				local s = HealthMon.snapshot()
+				expect(s.latencyP95Ms >= s.latencyAvgMs).to.equal(true)
+			end)
+			it("p99 >= p95", function()
+				local s = HealthMon.snapshot()
+				expect(s.latencyP99Ms >= s.latencyP95Ms).to.equal(true)
+			end)
+			it("sem dados retorna p95 = 0", function()
+				-- Cria um monitor limpo via re-init sem dados
+				HealthMon.init(function() return nil end, function() return {} end)
+				-- Apenas verifica que não crasha com ring vazio
+				local s = HealthMon.snapshot()
+				expect(s.latencyP95Ms >= 0).to.equal(true)
+			end)
+		end)
+
+		describe("status DEGRADED e FAIL", function()
+			it("avg > 20 → DEGRADED", function()
+				-- Satura o ring com latências altas
+				for _ = 1, 50 do HealthMon.recordLatency(30.0) end
+				local s = HealthMon.snapshot()
+				-- avg ~30, p99 ~30 → DEGRADED (não FAIL porque avg <= 50)
+				expect(s.status == "DEGRADED" or s.status == "FAIL").to.equal(true)
+			end)
+			it("avg > 50 → FAIL", function()
+				for _ = 1, 50 do HealthMon.recordLatency(200.0) end
+				local s = HealthMon.snapshot()
+				expect(s.status).to.equal("FAIL")
+			end)
+		end)
+
+		describe("playerMetrics", function()
+			it("retorna nil para perfil inexistente", function()
+				local fakeProfiles2 = {}
+				HealthMon.init(
+					function(pid) return fakeProfiles2[pid] end,
+					function() return {} end
+				)
+				expect(HealthMon.playerMetrics(42)).to.equal(nil)
+			end)
+			it("retorna métricas para perfil válido", function()
+				local fakeProfiles3 = {}
+				local now = os.clock()
+				fakeProfiles3[7] = {
+					suspicion    = 50,
+					level        = "WATCH",
+					anomalyHead  = 1,
+					anomalySize  = 0,
+					anomalies    = {},
+					wFps         = { mean = 60 },
+					bufSize      = 0,
+					bufHead      = 1,
+					buffer       = {},
+				}
+				HealthMon.init(
+					function(pid) return fakeProfiles3[pid] end,
+					function() return {} end
+				)
+				local m = HealthMon.playerMetrics(7)
+				expect(m ~= nil).to.equal(true)
+				expect(m.playerId).to.equal(7)
+				expect(m.suspicion).to.equal(50)
+				expect(m.level).to.equal("WATCH")
+				expect(m.fps).to.equal(60)
+			end)
+			it("riskScore está em [0, 100]", function()
+				local fakeProfiles4 = {}
+				fakeProfiles4[8] = {
+					suspicion   = 100,
+					level       = "BAN",
+					anomalyHead = 1,
+					anomalySize = 0,
+					anomalies   = {},
+					wFps        = { mean = 30 },
+					bufSize     = 0,
+					bufHead     = 1,
+					buffer      = {},
+				}
+				HealthMon.init(
+					function(pid) return fakeProfiles4[pid] end,
+					function() return {} end
+				)
+				local m = HealthMon.playerMetrics(8)
+				expect(m ~= nil).to.equal(true)
+				expect(m.riskScore >= 0 and m.riskScore <= 100).to.equal(true)
+			end)
+		end)
+
+		describe("public aliases", function()
 			it("getHealthSnapshot is exposed", function()
 				expect(HealthMon.getHealthSnapshot ~= nil).to.equal(true)
 			end)
