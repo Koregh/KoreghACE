@@ -4,6 +4,9 @@
 
 local CryptoLib = {}
 
+local HEADER1 = 0xAA
+local HEADER2 = 0xBB
+
 local function fmix32(h: number): number
 	local MASK32 : number = 0xFFFFFFFF
 	h = bit32.bxor(h, bit32.rshift(h, 16))
@@ -15,18 +18,25 @@ local function fmix32(h: number): number
 end
 
 local function keystreamByte(key: { number }, nonce: number, pos: number): number
-	local ki  : number = (pos % 16) + 1
-	local ki2 : number = ((pos + 7) % 16) + 1
-	local h   : number = bit32.bxor(nonce, bit32.band(pos * 0x9E3779B9, 0xFFFFFFFF))
-	h = bit32.bxor(h, key[ki]  * 0x00010001)
-	h = bit32.bxor(h, key[ki2] * 0x01000001)
-	return bit32.band(fmix32(h), 0xFF)
+	local h = bit32.bxor(nonce, bit32.band(pos * 0x9E3779B9, 0xFFFFFFFF))
+	for i = 1, 16 do
+		h = bit32.bxor(h, key[i] * (i * 0x01010101))
+		h = fmix32(h)
+	end
+	return bit32.band(h, 0xFF)
 end
 
 function CryptoLib.generateKey(): { number }
-	local k : { number } = table.create(16, 0)
+	local rng = Random.new()
+	local k = table.create(16, 0)
 	for i = 1, 16 do
-		k[i] = math.random(0, 255)
+		k[i] = rng:NextInteger(0, 255)
+	end
+	local allZero = true
+	for i = 1, 16 do if k[i] ~= 0 then allZero = false break end end
+	if allZero then
+		k[1] = 1
+		k[2] = 2
 	end
 	return k
 end
@@ -36,19 +46,26 @@ function CryptoLib.encode(
 	key        : { number },
 	nonce      : number
 ): { nonce: number, cs: number, data: { number } }
-	local n    : number     = #plainBytes
-	local data : { number } = table.create(n, 0)
+	-- Insere cabeçalho fixo no início do payload
+	local withHeader = table.create(#plainBytes + 2, 0)
+	withHeader[1] = HEADER1
+	withHeader[2] = HEADER2
+	for i = 1, #plainBytes do
+		withHeader[i + 2] = plainBytes[i]
+	end
 
-	local cs : number = nonce
+	local n = #withHeader
+	local data = table.create(n, 0)
+
+	local cs = nonce
 	for i = 1, n do
-		local kb  : number = keystreamByte(key, nonce, i - 1)
-		local enc : number = bit32.bxor(plainBytes[i], kb)
+		local kb = keystreamByte(key, nonce, i - 1)
+		local enc = bit32.bxor(withHeader[i], kb)
 		data[i] = enc
-		-- FIX: mask i * multiplier to 32 bits before xor to avoid f64 precision loss
 		cs = bit32.bxor(cs, bit32.band(enc * bit32.band(i * 0x9E3779B9, 0xFFFFFFFF), 0xFFFFFFFF))
 	end
 	cs = fmix32(cs)
-	
+
 	for i = 1, 16 do
 		cs = bit32.bxor(cs, key[i])
 		cs = fmix32(cs)
@@ -62,22 +79,21 @@ function CryptoLib.decode(
 	key       : { number },
 	lastNonce : number
 ): { number }?
-	local nonce : number     = packet.nonce
-	local cs    : number     = packet.cs
-	local data  : { number } = packet.data
+	local nonce = packet.nonce
+	local cs    = packet.cs
+	local data  = packet.data
 
 	if nonce <= lastNonce then return nil end
 
-	local n     : number     = #data
-	local plain : { number } = table.create(n, 0)
+	local n = #data
+	local plain = table.create(n, 0)
 
-	-- FIX: use the same masked formula as encode
-	local csCheck : number = nonce
+	local csCheck = nonce
 	for i = 1, n do
 		csCheck = bit32.bxor(csCheck, bit32.band(data[i] * bit32.band(i * 0x9E3779B9, 0xFFFFFFFF), 0xFFFFFFFF))
 	end
 	csCheck = fmix32(csCheck)
-	
+
 	for i = 1, 16 do
 		csCheck = bit32.bxor(csCheck, key[i])
 		csCheck = fmix32(csCheck)
@@ -89,11 +105,21 @@ function CryptoLib.decode(
 		plain[i] = bit32.bxor(data[i], keystreamByte(key, nonce, i - 1))
 	end
 
-	return plain
+	-- Verifica o cabeçalho fixo
+	if n < 2 or plain[1] ~= HEADER1 or plain[2] ~= HEADER2 then
+		return nil
+	end
+
+	-- Remove o cabeçalho e retorna o payload original
+	local result = table.create(n - 2, 0)
+	for i = 3, n do
+		result[i - 2] = plain[i]
+	end
+	return result
 end
 
 function CryptoLib.packInts(values: { number }): { number }
-	local out : { number } = table.create(#values, 0)
+	local out = table.create(#values, 0)
 	for i, v in values do
 		out[i] = bit32.band(math.floor(v), 0xFF)
 	end
@@ -103,15 +129,15 @@ end
 function CryptoLib.packU32(v: number): { number }
 	v = bit32.band(math.floor(v), 0xFFFFFFFF)
 	return {
-		bit32.band(v,              0xFF),
-		bit32.band(bit32.rshift(v,  8), 0xFF),
+		bit32.band(v, 0xFF),
+		bit32.band(bit32.rshift(v, 8), 0xFF),
 		bit32.band(bit32.rshift(v, 16), 0xFF),
 		bit32.band(bit32.rshift(v, 24), 0xFF),
 	}
 end
 
 function CryptoLib.unpackU32(b: { number }, offset: number): number
-	local o : number = offset or 1
+	local o = offset or 1
 	return b[o]
 		+ bit32.lshift(b[o + 1], 8)
 		+ bit32.lshift(b[o + 2], 16)
