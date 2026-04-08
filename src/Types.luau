@@ -139,7 +139,7 @@ export type PlayerProfile = {
 
 	suspicion   : number,
 	level       : SuspicionLevel,
-	anomalies   : { AnomalyRecord },  -- fixed-size ring (ANOMALY_CAP)
+	anomalies   : { AnomalyRecord },  
 	anomalyHead : number,
 	anomalySize : number,
 
