@@ -1,10 +1,9 @@
 --!strict
 
--- ============================================================
 --  PopulationConfig  —  EXAMPLE / REFERENCE FILE
 --  DO NOT use this file directly in production.
 --  Copy PopulationConfig.luau and fill with your own data.
--- ============================================================
+
 --
 -- HOW TO USE:
 -- Replace the values below with actual data from YOUR game.
@@ -23,10 +22,10 @@
 --
 --
 -- Metrics source:
--- • Reaction time: CS2 performance studies (leetify.com)
--- • Headshot rate : leetify.com population data 2024
--- • Accuracy: CS2 Match Stats (Valve + community trackers)
--- • Speed (studs/s): CS2 → Roblox mapping:
+-- Reaction time: CS2 performance studies (leetify.com)
+-- Headshot rate : leetify.com population data 2024
+-- Accuracy: CS2 Match Stats (Valve + community trackers)
+-- Speed (studs/s): CS2 → Roblox mapping:
 --     CS2 walking = 130 u/s ≈  8 studs/s
 --     CS2 running = 250 u/s ≈ 16 studs/s (default Roblox walk)
 --     CS2 knife   = 260 u/s ≈ 17 studs/s
@@ -140,7 +139,6 @@ local DEFAULT_TIERS : Types.PopulationBaseline = {
 	--    speed    p50 ≈ 16     (perfect counter-strafe = 250 u/s)
 	--    cps      p50 ≈ 6.5    (high-frequency tap/burst)
 	--
-	--  ⚠️  WARNING:
 	--    accuracy p95 = 0.88 → close to the verifiable human ceiling.
 	--    Values above 0.92 over a long session (>100 shots) are
 	--    strongly suspicious. ACCURACY_CEIL in AnomalyDetector
