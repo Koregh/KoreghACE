@@ -101,7 +101,6 @@ local function push(
 	profile.anomalySize = math.min(profile.anomalySize + 1, ANOMALY_CAP)
 end
 
-@inline
 local function zSev(z: number, threshold: number): number
 	local absZ : number = math.abs(z)
 	if absZ < threshold then return 0.0 end
