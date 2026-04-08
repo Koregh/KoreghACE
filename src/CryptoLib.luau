@@ -48,6 +48,11 @@ function CryptoLib.encode(
 		cs = bit32.bxor(cs, bit32.band(enc * bit32.band(i * 0x9E3779B9, 0xFFFFFFFF), 0xFFFFFFFF))
 	end
 	cs = fmix32(cs)
+	
+	for i = 1, 16 do
+		cs = bit32.bxor(cs, key[i])
+		cs = fmix32(cs)
+	end
 
 	return { nonce = nonce, cs = cs, data = data }
 end
@@ -72,6 +77,11 @@ function CryptoLib.decode(
 		csCheck = bit32.bxor(csCheck, bit32.band(data[i] * bit32.band(i * 0x9E3779B9, 0xFFFFFFFF), 0xFFFFFFFF))
 	end
 	csCheck = fmix32(csCheck)
+	
+	for i = 1, 16 do
+		csCheck = bit32.bxor(csCheck, key[i])
+		csCheck = fmix32(csCheck)
+	end
 
 	if csCheck ~= cs then return nil end
 
