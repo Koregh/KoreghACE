@@ -7,7 +7,8 @@ local MathLib = {}
 local INV_SQRT2PI : number = 0.3989422804014327
 local LN2         : number = 0.6931471805599453
 
-@inline
+-- @inline (agora vai rodar a 144fps confia KKAKAKAKA)
+
 function MathLib.welfordPush(n: number, mean: number, M2: number, x: number)
 	: (number, number, number)
 	n += 1
@@ -17,19 +18,15 @@ function MathLib.welfordPush(n: number, mean: number, M2: number, x: number)
 	return n, mean, M2
 end
 
-@inline
 function MathLib.welfordVariance(n: number, M2: number): number
 	if n < 2 then return 0.0 end
 	return M2 / n
 end
 
-@inline
 function MathLib.welfordStddev(n: number, M2: number): number
 	return math.sqrt(MathLib.welfordVariance(n, M2))
 end
 
-
-@inline
 function MathLib.zScore(x: number, mean: number, stddev: number): number
 	if stddev < 1e-9 then return 0.0 end
 	return (x - mean) / stddev
@@ -47,13 +44,11 @@ function MathLib.normalCDF(x: number): number
 	return if sign < 0 then 1.0 - cdf else cdf
 end
 
-@inline
 function MathLib.pValue(z: number): number
 	return 2.0 * (1.0 - MathLib.normalCDF(math.abs(z)))
 end
 
 
-@inline
 function MathLib.expDecay(value: number, dt: number, halfLife: number): number
 	if halfLife <= 0.0 then return value end
 	return value * math.exp(-(LN2 / halfLife) * dt)
@@ -82,25 +77,21 @@ function MathLib.pearson(xs: { number }, ys: { number }): number
 	return num / den
 end
 
-@inline
 function MathLib.cframeDelta(a: CFrame, b: CFrame): number
 	local dot : number = math.clamp(a.LookVector:Dot(b.LookVector), -1.0, 1.0)
 	return math.acos(dot)
 end
 
-@inline
 function MathLib.angularVelocity(a: CFrame, b: CFrame, dt: number): number
 	if dt < 1e-6 then return 0.0 end
 	return MathLib.cframeDelta(a, b) / dt
 end
 
-@inline
 function MathLib.speed(v: Vector3): number
 	local x = v.X; local y = v.Y; local z = v.Z
 	return math.sqrt(x*x + y*y + z*z)
 end
 
-@inline
 function MathLib.positionThreshold(
 	speed       : number,
 	ping        : number,
@@ -110,7 +101,6 @@ function MathLib.positionThreshold(
 	return speed * window + errorMargin
 end
 
-@inline
 function MathLib.cv(mean: number, stddev: number): number
 	if math.abs(mean) < 1e-9 then return 0.0 end
 	return stddev / math.abs(mean)
@@ -144,15 +134,15 @@ function MathLib.entropyNorm(
 	return H / math.log(math.max(vocabSize, 2))
 end
 
-@inline function MathLib.clamp01(x: number): number
+function MathLib.clamp01(x: number): number
 	return math.max(0.0, math.min(1.0, x))
 end
 
-@inline function MathLib.clampSusp(x: number): number
+function MathLib.clampSusp(x: number): number
 	return math.max(0.0, math.min(100.0, x))
 end
 
-@inline function MathLib.ringIdx(head: number, offset: number, cap: number): number
+function MathLib.ringIdx(head: number, offset: number, cap: number): number
 	return ((head + offset - 2) % cap) + 1
 end
 
@@ -162,7 +152,6 @@ end
 -- Used to scale position deltas and reaction floors.
 local TARGET_FPS : number = 60.0
 
-@inline
 function MathLib.fpsScaleFactor(fps: number): number
 	local safeFps : number = math.max(fps, 5.0)
 	-- Scale proportional to sqrt(TARGET/fps) — aggressive enough
@@ -176,7 +165,7 @@ end
 -- of how fast the player is — the client simply cannot have
 -- registered the input faster than one render frame.
 -- Returns the floor in milliseconds.
-@inline
+
 function MathLib.reactionFpsFloor(fps: number): number
 	local safeFps : number = math.max(fps, 1.0)
 	-- Two frames: one to render the stimulus, one to process input.
@@ -187,7 +176,7 @@ end
 -- established baseline (wDeltaBase), not a global constant.
 -- This neutralises the effect of mouse sensitivity / DPI.
 -- Returns z-score (positive = faster than own history).
-@inline
+
 function MathLib.sensitivityZ(
 	angVel       : number,
 	baselineMean : number,
