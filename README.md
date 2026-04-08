@@ -8,7 +8,7 @@
 > This project used artificial intelligence to extract online data from CS2 and generate an accurate sample report intended for developers.
 
 > [!TIP]
->
+> Special thanks to Professor Fernando Mori for his guidance and dedication throughout the semester. His teachings in Computational Mathematics and fundamental mathematical concepts were essential to the development of this project, providing both theoretical foundation and practical insight. His support and knowledge greatly contributed to our learning and growth.
 ---
 
 # KoreghACE — Koregh Behavior Validation System (KBVS)
