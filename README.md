@@ -556,7 +556,6 @@ Rather than a single z-score threshold, use Bayesian updating. Start with a weak
 ## Performance notes
 
 - `--!native` and `--!optimize 2` on all hot-path modules (`MathLib`, `DataCollector`, `AnomalyDetector`, `CryptoLib`)
-- `@inline` on arithmetic functions — no call overhead in inner loops
 - Ring buffers pre-allocated with `table.create` at registration — zero allocations per sample
 - Welford: O(1) per sample, no history retained
 - CPS ring: O(1) push, O(64) query (bounded by `CPS_CAP`)
