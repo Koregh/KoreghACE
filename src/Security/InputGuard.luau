@@ -1,29 +1,8 @@
 --!strict
 --!optimize 2
 
--- ============================================================
---  InputGuard.luau  v4.0
---  Server-side input validation and sanitisation.
---
---  Every value that arrives from a client RemoteEvent MUST be
---  validated here before being passed to any detector.
---
---  Rules enforced:
---    • Type checking (typeof)
---    • Numeric bounds (NaN, ±inf, overflow, absurd values)
---    • String length and character-set limits
---    • Table depth, size, and structure validation
---    • Recursive-table detection
---    • Payload size budget
---
---  Usage pattern:
---    local ok, err = InputGuard.validatePacket(packet)
---    if not ok then return end   -- silently drop
--- ============================================================
-
 local InputGuard = {}
 
--- ── Limits ───────────────────────────────────────────────────
 local LIMITS = {
 	-- Byte array payload
 	MAX_PAYLOAD_BYTES    = 256,
@@ -58,9 +37,8 @@ local LIMITS = {
 -- Expose limits for external reference
 InputGuard.LIMITS = LIMITS
 
--- ── Primitive validators ──────────────────────────────────────
 
-@inline
+
 local function isFiniteNumber(v: unknown): boolean
 	if typeof(v) ~= "number" then return false end
 	local n : number = v :: number
@@ -69,15 +47,13 @@ local function isFiniteNumber(v: unknown): boolean
 		and n ~= -math.huge
 end
 
-@inline
+
 local function inRange(v: number, lo: number, hi: number): boolean
 	return v >= lo and v <= hi
 end
 
--- ── Type tags ────────────────────────────────────────────────
-export type ValidationResult = (boolean, string?)
+type ValidationResult = { ok: boolean, err: string? }
 
--- ── Number validator ─────────────────────────────────────────
 function InputGuard.checkNumber(
 	v    : unknown,
 	lo   : number?,
@@ -97,7 +73,6 @@ function InputGuard.checkNumber(
 	return true, nil
 end
 
--- ── String validator ─────────────────────────────────────────
 function InputGuard.checkString(
 	v       : unknown,
 	maxLen  : number?,
@@ -119,7 +94,6 @@ function InputGuard.checkString(
 	return true, nil
 end
 
--- ── Table depth / size guard ──────────────────────────────────
 -- Uses a seen-set to catch recursive tables.
 local function checkTableInner(
 	t       : unknown,
@@ -157,7 +131,6 @@ function InputGuard.checkTable(t: unknown): ValidationResult
 	return checkTableInner(t, 1, {})
 end
 
--- ── Byte-array payload validator ──────────────────────────────
 -- Validates { number } array: each element must be u8 [0,255].
 function InputGuard.checkByteArray(
 	arr  : unknown,
@@ -195,7 +168,6 @@ function InputGuard.checkByteArray(
 	return true, nil
 end
 
--- ── Encrypted packet validator ────────────────────────────────
 -- Validates the wire format: { nonce: number, cs: number, data: {number} }
 function InputGuard.checkPacket(v: unknown): ValidationResult
 	local ok, err = InputGuard.checkTable(v)
@@ -219,7 +191,6 @@ function InputGuard.checkPacket(v: unknown): ValidationResult
 	return true, nil
 end
 
--- ── Hit request validator ─────────────────────────────────────
 function InputGuard.checkHitBytes(bytes: { number }): ValidationResult
 	if #bytes < 25 then
 		return false, "hit payload too short: " .. #bytes
@@ -231,12 +202,10 @@ function InputGuard.checkHitBytes(bytes: { number }): ValidationResult
 	return true, nil
 end
 
--- ── FPS validator ─────────────────────────────────────────────
 function InputGuard.checkFps(v: unknown): ValidationResult
 	return InputGuard.checkNumber(v, LIMITS.MIN_FPS, LIMITS.MAX_FPS, "fps")
 end
 
--- ── Damage / range post-unpack validators ─────────────────────
 function InputGuard.checkDamage(v: number): ValidationResult
 	return InputGuard.checkNumber(v, 0, LIMITS.MAX_DAMAGE, "damage")
 end
