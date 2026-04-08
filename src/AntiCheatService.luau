@@ -15,6 +15,7 @@ local Logger          = require(script.Server.Logger)
 local CryptoLib       = require(script.Shared.CryptoLib)
 local Types           = require(script.Shared.Types)
 local MathLib         = require(script.Shared.MathLib)
+local InputGuard      = require(script.Security.InputGuard)
 
 local function makeEvent(name: string): RemoteEvent
 	local r = Instance.new("RemoteEvent"); r.Name = name; r.Parent = ReplicatedStorage; return r
@@ -58,7 +59,8 @@ HandshakeFunc.OnServerInvoke = function(player: Player, clientFps: unknown): { n
 end
 
 FpsEvent.OnServerEvent:Connect(function(player: Player, fps: unknown)
-	if type(fps) ~= "number" then return end
+	local ok, err = InputGuard.checkFps(fps)
+	if not ok then return end
 	DataCollector.updateFps(player.UserId, fps :: number)
 end)
 
@@ -120,6 +122,9 @@ ActionEvent.OnServerEvent:Connect(function(player: Player, packet: unknown)
 	local pid : Types.PlayerId = player.UserId
 	if rateLimited(pid) then return end
 
+	local pok, perr = InputGuard.checkPacket(packet)
+	if not pok then return end
+
 	local bytes : { number }? = decodePayload(player, packet)
 	if not bytes or #bytes < 1 then return end
 
@@ -130,6 +135,9 @@ end)
 -- No payload needed — just signal arrival is sufficient.
 -- Still encrypted to prevent forged timings.
 StimulusEvent.OnServerEvent:Connect(function(player: Player, packet: unknown)
+	local sok, serr = InputGuard.checkPacket(packet)
+	if not sok then return end
+
 	local bytes : { number }? = decodePayload(player, packet)
 	if not bytes then return end
 	DataCollector.recordStimulus(player.UserId)
@@ -149,6 +157,9 @@ end)
 -- is needed for your game.
 HitEvent.OnServerEvent:Connect(function(attacker: Player, packet: unknown)
 	local attackerPid : Types.PlayerId = attacker.UserId
+
+	local hok, herr = InputGuard.checkPacket(packet)
+	if not hok then return end
 
 	local bytes : { number }? = decodePayload(attacker, packet)
 	if not bytes or #bytes < 25 then return end
