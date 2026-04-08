@@ -5,7 +5,7 @@
 > Use it as one layer of defence among many — never as the only one.
 
 >[!NOTE]
->a
+> This project used artificial intelligence to extract online data from CS2 and generate an accurate sample report intended for developers.
 ---
 
 # KoreghACE — Koreg Behavior Validation System (KBVS)
