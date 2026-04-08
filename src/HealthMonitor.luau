@@ -68,7 +68,7 @@ function HealthMonitor.recordEvent(): ()
 end
 
 function HealthMonitor.recordLatency(ms: number): ()
-	if type(ms) ~= "number" or ms ~= ms or ms < 0 then return end
+	if type(ms) ~= "number" or ms ~= ms or ms < 0   or ms > 10000 then return end
 	_latRing[_latHead] = ms
 	_latHead  = (_latHead % LAT_CAP) + 1
 	_latSize  = math.min(_latSize + 1, LAT_CAP)
@@ -208,11 +208,17 @@ function HealthMonitor.playerMetrics(playerId: number): PlayerMetrics?
 	}
 end
 
+-- FIX Bug 3: expõe aliases públicos esperados pelos testes e por código externo
 HealthMonitor.getHealthSnapshot = HealthMonitor.snapshot
 HealthMonitor.getPlayerMetrics  = HealthMonitor.playerMetrics
 
 RunService.Heartbeat:Connect(function(_dt: number)
-	HealthMonitor.recordAnalysisTick()
+	local now : number = os.clock()
+	if now - _eventWindow >= 5.0 then
+		_eps         = _epsCount / math.max(now - _eventWindow, 1e-3)
+		_epsCount    = 0
+		_eventWindow = now
+	end
 end)
 
 return HealthMonitor
