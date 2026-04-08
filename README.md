@@ -8,7 +8,7 @@
 > This project used artificial intelligence to extract online data from CS2 and generate an accurate sample report intended for developers.
 ---
 
-# KoreghACE — Koreg Behavior Validation System (KBVS)
+# KoreghACE — Koregh Behavior Validation System (KBVS)
 
 **Server-authoritative behavioural analysis engine for Roblox games.**
 Statistical anomaly detection, Markov behaviour modelling, cryptographic payload integrity, and graduated enforcement — running entirely server-side.
