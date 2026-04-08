@@ -4,6 +4,8 @@
 > A determined cheater who understands the system can reduce their signature.
 > Use it as one layer of defence among many — never as the only one.
 
+>[!NOTE]
+>a
 ---
 
 # KoreghACE — Koreg Behavior Validation System (KBVS)
@@ -38,7 +40,7 @@ Statistical anomaly detection, Markov behaviour modelling, cryptographic payload
 
 ## What this system IS and IS NOT
 
-### ✅ What KBVS IS
+### What KBVS IS
 
 | Property | Detail |
 |---|---|
@@ -49,7 +51,7 @@ Statistical anomaly detection, Markov behaviour modelling, cryptographic payload
 | **Adaptive** | Per-player baselines. A high-sensitivity player is judged against their own history, not global constants |
 | **Anti-replay** | XOR stream cipher with monotonic nonce prevents replaying captured packets |
 
-### ❌ What KBVS IS NOT
+### What KBVS IS NOT
 
 | Claim | Reality |
 |---|---|
@@ -465,7 +467,7 @@ ActionReporter.submitHit(victimId, clientPos, range, damage, isHeadshot): ()
 
 ## Critical analysis & known limitations
 
-### ✅ Strengths
+### Strengths
 
 - **Zero allocations in hot path.** Pre-allocated ring buffers, Welford accumulators, and in-place Markov updates mean no GC pressure at runtime.
 - **FPS-adaptive thresholds.** A player at 20 fps gets scaled margins to prevent false positives from large physics steps.
@@ -473,7 +475,7 @@ ActionReporter.submitHit(victimId, clientPos, range, damage, isHeadshot): ()
 - **Layered signals.** No single detector drives a ban. All 12 detectors contribute weighted signals. One anomaly alone cannot reach REMOVE.
 - **Graceful decay.** Legitimate lag spikes, burst clicks, or momentary accuracy peaks decay without permanent consequence.
 
-### ⚠️ Known failure modes
+### Known failure modes
 
 | Scenario | Risk | Mitigation |
 |---|---|---|
