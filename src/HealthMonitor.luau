@@ -68,6 +68,7 @@ function HealthMonitor.recordEvent(): ()
 end
 
 function HealthMonitor.recordLatency(ms: number): ()
+	if type(ms) ~= "number" or ms ~= ms or ms < 0 then return end
 	_latRing[_latHead] = ms
 	_latHead  = (_latHead % LAT_CAP) + 1
 	_latSize  = math.min(_latSize + 1, LAT_CAP)
