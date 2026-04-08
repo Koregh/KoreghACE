@@ -7,8 +7,6 @@ local MathLib = {}
 local INV_SQRT2PI : number = 0.3989422804014327
 local LN2         : number = 0.6931471805599453
 
--- @inline (agora vai rodar a 144fps confia KKAKAKAKA)
-
 function MathLib.welfordPush(n: number, mean: number, M2: number, x: number)
 	: (number, number, number)
 	n += 1
