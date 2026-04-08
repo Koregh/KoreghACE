@@ -6,6 +6,9 @@
 
 >[!NOTE]
 > This project used artificial intelligence to extract online data from CS2 and generate an accurate sample report intended for developers.
+
+> [!TIP]
+>
 ---
 
 # KoreghACE — Koregh Behavior Validation System (KBVS)
