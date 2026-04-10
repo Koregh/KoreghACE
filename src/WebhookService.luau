@@ -92,7 +92,7 @@ local function buildPayload(
 		)
 	end
 
-	-- Substitua este bloco pela estrutura JSON do seu endpoint.
+	-- Replace this block with the JSON structure of your endpoint.
 	local color : number =
 		if decision.reason == "REMOVE"    then 0xED4245  -- Red
 		elseif decision.reason == "SHADOWBAN" then 0xFEE75C  -- Yellow
