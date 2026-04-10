@@ -1,50 +1,13 @@
 --!strict
 --!optimize 2
-
---[[
-	╔══════════════════════════════════════════════════════════════╗
-	║                    WebhookService                           ║
-	║                   KoreghACE  ·  v1.0                        ║
-	╠══════════════════════════════════════════════════════════════╣
-	║  Envia notificações de eventos do anti-cheat para um        ║
-	║  endpoint HTTP externo (Discord, servidor próprio, etc).    ║
-	║                                                             ║
-	║  ⚠  HttpService precisa estar HABILITADO nas configurações  ║
-	║     do jogo (Game Settings → Security → Allow HTTP).        ║
-	║                                                             ║
-	║  COMO USAR                                                  ║
-	║  ─────────────────────────────────────────────────────────  ║
-	║  1. Configure a URL do seu endpoint em CFG.URL abaixo.      ║
-	║  2. Ajuste CFG.MIN_LEVEL para controlar quais eventos       ║
-	║     disparam o webhook (padrão: ALERT e acima).             ║
-	║  3. Opcionalmente sobrescreva buildPayload() com a          ║
-	║     estrutura JSON que seu endpoint espera.                 ║
-	║                                                             ║
-	║  INTEGRAÇÃO COM AntiCheatService                            ║
-	║  ─────────────────────────────────────────────────────────  ║
-	║  No AntiCheatService, dentro do Heartbeat, após            ║
-	║  DecisionEngine.evaluate(), adicione:                       ║
-	║                                                             ║
-	║    if decision.action ~= "NONE" then                        ║
-	║        WebhookService.notify(player, decision, latest)      ║
-	║    end                                                      ║
-	╚══════════════════════════════════════════════════════════════╝
-]]
-
 local HttpService = game:GetService("HttpService")
 local RunService  = game:GetService("RunService")
 local Players     = game:GetService("Players")
 
 local Types = require(script.Parent.Shared.Types)
 
--- ─── Configuração ────────────────────────────────────────────────────────────
 
 local CFG = {
-	-- ┌─────────────────────────────────────────────────────────────┐
-	-- │  URL do seu webhook.                                        │
-	-- │  Discord  → https://discord.com/api/webhooks/ID/TOKEN       │
-	-- │  Próprio  → https://seuservidor.com/koregh/events           │
-	-- └─────────────────────────────────────────────────────────────┘
 	URL = "https://discord.com/api/webhooks/SEU_ID/SEU_TOKEN",
 
 	-- Nível mínimo para disparar o webhook.
