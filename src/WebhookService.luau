@@ -8,34 +8,31 @@ local Types = require(script.Parent.Shared.Types)
 
 
 local CFG = {
-	URL = "https://discord.com/api/webhooks/SEU_ID/SEU_TOKEN",
+	URL = "https://discord.com/api/webhooks/YOUR_ID/TOKEN",
 
-	-- Nível mínimo para disparar o webhook.
-	-- Ordem: CLEAN < MONITOR < ALERT < RESTRICT < SHADOWBAN < REMOVE
+	-- CLEAN < MONITOR < ALERT < RESTRICT < SHADOWBAN < REMOVE
 	MIN_LEVEL = "ALERT",
 
-	-- Número máximo de requisições enfileiradas aguardando envio.
-	-- Eventos acima desse limite são descartados silenciosamente
-	-- para não acumular memória em caso de endpoint indisponível.
+	-- Maximum number of queued requests waiting to be sent.
+	-- Events above this threshold are silently discarded
+	-- to not accumulate memory in case of an unavailable endpoint.
 	QUEUE_CAP = 50,
 
-	-- Intervalo em segundos entre tentativas de envio (rate-limit
-	-- interno). Discord limita ~5 req/2s por webhook; ajuste
-	-- conforme seu endpoint.
+	-- Interval in seconds between sending attempts (rate-limit
+	-- internal). Discord limits ~5 req/2s per webhook; adjustment
+	-- as per your endpoint.
 	SEND_INTERVAL = 0.5,
 
-	-- Número de tentativas por evento antes de descartar.
+	-- Number of retries per event before discarding.
 	MAX_RETRIES = 3,
 
-	-- Timeout de cada requisição HTTP em segundos.
 	TIMEOUT = 5,
 
-	-- Incluir dados brutos do sample no payload (posição, vel, etc).
-	-- Desative se o payload for muito grande ou não necessário.
+	-- Include raw sample data in the payload (position, speed, etc.).
+	-- Disable if payload is too large or not necessary.
 	INCLUDE_SAMPLE = true,
 }
 
--- Mapa de nível → peso numérico (para comparação MIN_LEVEL)
 local LEVEL_ORDER: { [string]: number } = {
 	CLEAN     = 0,
 	MONITOR   = 1,
@@ -45,7 +42,6 @@ local LEVEL_ORDER: { [string]: number } = {
 	REMOVE    = 5,
 }
 
--- Emoji por nível (padrão Discord — remova se não usar Discord)
 local LEVEL_EMOJI: { [string]: string } = {
 	CLEAN     = "✅",
 	MONITOR   = "👁️",
@@ -55,39 +51,14 @@ local LEVEL_EMOJI: { [string]: string } = {
 	REMOVE    = "🔨",
 }
 
--- ─── Tipagem interna ──────────────────────────────────────────────────────────
-
 type QueueEntry = {
-	payload  : string,   -- JSON já serializado
+	payload  : string,  
 	retries  : number,
 }
-
--- ─── Estado interno ───────────────────────────────────────────────────────────
 
 local _queue    : { QueueEntry } = {}
 local _sendAcc  : number         = 0.0
 
--- ─── buildPayload ─────────────────────────────────────────────────────────────
---[[
-	┌─────────────────────────────────────────────────────────────────┐
-	│  PERSONALIZE AQUI                                               │
-	│                                                                 │
-	│  Esta função converte os dados do evento em um JSON pronto      │
-	│  para ser enviado ao seu endpoint.                              │
-	│                                                                 │
-	│  O preset abaixo gera um Discord Embed. Se você usar um         │
-	│  servidor próprio, substitua o corpo da função pelo shape       │
-	│  JSON que sua API espera.                                       │
-	│                                                                 │
-	│  Variáveis disponíveis:                                         │
-	│    player   : Player            — instância Roblox              │
-	│    decision : Types.Decision    — action, reason, suspicion     │
-	│    anomaly  : Types.AnomalyRecord? — kind, severity, extra, t   │
-	│    gameId   : number            — game.PlaceId                  │
-	│    serverId : string            — game.JobId                    │
-	│    ts       : number            — os.time() (Unix)              │
-	└─────────────────────────────────────────────────────────────────┘
-]]
 local function buildPayload(
 	player   : Player,
 	decision : Types.Decision,
@@ -99,7 +70,6 @@ local function buildPayload(
 	local ts       : number = os.time()
 	local emoji    : string = LEVEL_EMOJI[decision.reason] or "🔍"
 
-	-- ── Campos de debug do sample (opcional) ─────────────────────
 	local sampleInfo : string = ""
 	if CFG.INCLUDE_SAMPLE and anomaly and anomaly.raw then
 		local s = anomaly.raw
@@ -112,7 +82,6 @@ local function buildPayload(
 		)
 	end
 
-	-- ── Anomaly detail ────────────────────────────────────────────
 	local anomalyLine : string = "—"
 	if anomaly then
 		anomalyLine = string.format(
@@ -123,13 +92,12 @@ local function buildPayload(
 		)
 	end
 
-	-- ── Discord Embed (preset padrão) ─────────────────────────────
 	-- Substitua este bloco pela estrutura JSON do seu endpoint.
 	local color : number =
-		if decision.reason == "REMOVE"    then 0xED4245  -- vermelho
-		elseif decision.reason == "SHADOWBAN" then 0xFEE75C  -- amarelo
-		elseif decision.reason == "RESTRICT"  then 0xFF8C00  -- laranja
-		else                                      0x5865F2   -- azul
+		if decision.reason == "REMOVE"    then 0xED4245  -- Red
+		elseif decision.reason == "SHADOWBAN" then 0xFEE75C  -- Yellow
+		elseif decision.reason == "RESTRICT"  then 0xFF8C00  -- Orange
+		else                                      0x5865F2   -- Blue
 
 	local description : string = string.format(
 		"%s **%s** › `%s`\n\n" ..
@@ -161,7 +129,6 @@ local function buildPayload(
 	return HttpService:JSONEncode(body)
 
 	--[[
-	── EXEMPLO: payload para servidor próprio ──────────────────────
 	local body = {
 		event      = "ac_decision",
 		playerId   = player.UserId,
@@ -182,22 +149,14 @@ local function buildPayload(
 	]]
 end
 
--- ─── API pública ──────────────────────────────────────────────────────────────
 
 local WebhookService = {}
 
---[[
-	Enfileira uma notificação para envio assíncrono.
-
-	Chamada típica (em AntiCheatService, no Heartbeat):
-	  WebhookService.notify(player, decision, latestAnomaly)
-]]
 function WebhookService.notify(
 	player   : Player,
 	decision : Types.Decision,
 	anomaly  : Types.AnomalyRecord?
 ): ()
-	-- Filtra por nível mínimo
 	local minW : number = LEVEL_ORDER[CFG.MIN_LEVEL] or 2
 	local evW  : number = LEVEL_ORDER[decision.reason] or 0
 	if evW < minW then return end
@@ -213,15 +172,12 @@ function WebhookService.notify(
 	_queue[#_queue + 1] = { payload = payload, retries = 0 }
 end
 
--- Permite ao desenvolvedor trocar a URL em runtime (útil para testes).
 function WebhookService.setUrl(url: string): ()
 	CFG.URL = url
 end
 
--- Expõe CFG para o desenvolvedor poder fazer patch (igual ao AnomalyDetector).
 WebhookService.CFG = CFG
 
--- ─── Loop de envio assíncrono ────────────────────────────────────────────────
 
 RunService.Heartbeat:Connect(function(dt: number)
 	_sendAcc += dt
@@ -229,7 +185,7 @@ RunService.Heartbeat:Connect(function(dt: number)
 	_sendAcc -= CFG.SEND_INTERVAL
 
 	if #_queue == 0 then return end
-	if CFG.URL == "" or CFG.URL:find("SEU_ID") then return end   -- não configurado
+	if CFG.URL == "" or CFG.URL:find("YOUR_ID") then return end  
 
 	local entry : QueueEntry = table.remove(_queue, 1) :: QueueEntry
 
@@ -246,11 +202,10 @@ RunService.Heartbeat:Connect(function(dt: number)
 		if not ok then
 			entry.retries += 1
 			if entry.retries < CFG.MAX_RETRIES then
-				-- Reinsere no final da fila para retry
 				_queue[#_queue + 1] = entry
 			else
 				warn(string.format(
-					"[WebhookService] Descartado após %d tentativas: %s",
+					"[WebhookService] Discarded after %d attempts: %s",
 					CFG.MAX_RETRIES, tostring(err)
 				))
 			end
